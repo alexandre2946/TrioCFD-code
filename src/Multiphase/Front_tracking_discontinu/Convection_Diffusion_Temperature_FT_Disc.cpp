@@ -2189,16 +2189,22 @@ void Convection_Diffusion_Temperature_FT_Disc::calcul_flux_interface()
   const Domaine_VDF& domaine_vdf = ref_cast(Domaine_VDF, domaine_dis());
   const Domaine& domaine = domaine_vdf.domaine();
 
-  // prop du fluide
+  // properties of the fluide
   const Fluide_Diphasique& mon_fluide = eq_ns.fluide_diphasique();
-  double lambda_f=mon_fluide.fluide_phase(1).conductivite().valeurs()(0, 0);
+  double lambda_f = mon_fluide.fluide_phase(1).conductivite().valeurs()(0, 0);
 
-  // grandeurs interface
+	// get mesh
   const Maillage_FT_Disc& maillage = eq_transport.maillage_interface_pour_post();
+
+  // compute number of real (=non-virtual) faces in the mesh
   const int nb_fa7 = maillage.nb_facettes();
+
   int nb_fa7_reelle=0;
-  for (int i=0; i<nb_fa7; i++)
-    if (!maillage.facette_virtuelle(i)) nb_fa7_reelle++;
+  for (int i=0; i<nb_fa7; i++) {
+    if (!maillage.facette_virtuelle(i))
+		nb_fa7_reelle++;
+  }
+
 
   IntVect compo_connexes_fa7(nb_fa7); // Init a zero
   int n = search_connex_components_local_FT(maillage, compo_connexes_fa7);
@@ -2209,6 +2215,7 @@ void Convection_Diffusion_Temperature_FT_Disc::calcul_flux_interface()
   static int iter=0;
   DoubleVect& flux_tot_conductif=flux_conductif_tot_interf_;
   DoubleTab& flux_cond_interf=flux_conductif_interf_;
+
   if (iter==0)
     {
       flux_tot_conductif.resize(nb_compo_tot);
@@ -2289,9 +2296,12 @@ void Convection_Diffusion_Temperature_FT_Disc::calcul_flux_interface()
       DoubleTab temp_P1(nb_fa7);
       DoubleTab temp_P2(nb_fa7);
 
+		// interpolate temperature at P1 and P2
       int interp_T_P1_ok=eq_ns.trilinear_interpolation_elem(indicatrice,temperature, coord_voisin_fluide_fa7_T_1,temp_P1);
       int interp_T_P2_ok=eq_ns.trilinear_interpolation_elem(indicatrice, temperature, coord_voisin_fluide_fa7_T_2,temp_P2);
 
+		// if the interpolation of P1 and P2 on all faces of the particle, we compute
+		// the flux on each face
       if (interp_T_P1_ok &&  interp_T_P2_ok)
         {
           for (int fa7=0; fa7<nb_fa7; fa7++)
@@ -2328,7 +2338,7 @@ void Convection_Diffusion_Temperature_FT_Disc::calcul_flux_interface()
                   // here depending on the normal orientation we take the element on one side or the other
                   int z_neighbor;
                   if(les_normales_fa7(fa7, 2) > 0)
-                    z_neighbor = domaine_vdf.face_voisins(
+                  	z_neighbor = domaine_vdf.face_voisins(
                                    domaine_vdf.elem_faces(elem_diph, 2 + dimension),
                                    1);
 
@@ -2395,10 +2405,12 @@ void Convection_Diffusion_Temperature_FT_Disc::calcul_flux_interface()
                 }
             }
         }
+		/*
       else
         {
           for (int compo=0; compo<nb_compo_tot; compo++) flux_tot_conductif(compo)+=0;
         }
+		*/
     }
 
   mp_sum_for_each_item(flux_tot_conductif);
@@ -2410,6 +2422,8 @@ void Convection_Diffusion_Temperature_FT_Disc::calcul_flux_interface()
       T_P2_moy(compo)/=Nb_fa7_ok_prop(compo);
     }
 }
+
+
 
 const DoubleTab& Convection_Diffusion_Temperature_FT_Disc::get_flux_conductif_interf() const { return flux_conductif_interf_; }
 DoubleTab& Convection_Diffusion_Temperature_FT_Disc::get_flux_conductif_interf() { return flux_conductif_interf_;}

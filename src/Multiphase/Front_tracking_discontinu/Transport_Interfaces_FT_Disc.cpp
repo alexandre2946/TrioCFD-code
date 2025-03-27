@@ -11941,6 +11941,7 @@ void Transport_Interfaces_FT_Disc::postraiter_forces_interface()
       ns.calcul_forces_interface();
       variables_internes_->statut_calcul_forces_=1;
     }
+
   if (les_post_interf.postraiter_flux() && variables_internes_->statut_calcul_flux_thermique_==0)
     {
       Equation_base& eqn_temp =  variables_internes_-> refequation_temperature_.valeur();
@@ -12019,7 +12020,7 @@ void Transport_Interfaces_FT_Disc::init_positions_vitesses_FT()
         s.ref_array(surfaces_compo);
         tab_divide_any_shape(positions, s);
 
-        //---fin calcul surface_compo et position_centre_gravite_compo ( a rassembler dans une focntion)---//
+        //---fin calcul surface_compo et position_centre_gravite_compo ( a rassembler dans une fonction)---//
       }
 
     }

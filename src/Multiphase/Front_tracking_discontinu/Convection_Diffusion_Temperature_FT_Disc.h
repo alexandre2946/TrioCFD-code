@@ -160,8 +160,16 @@ protected:
   ArrOfInt mixed_elems_conv_;
   ArrOfDouble lost_fluxes_conv_;
   // debut EB
+
+  // heat flux [W] at the interface for each faces
   DoubleTab flux_conductif_interf_;
+
+  // sum of flux for each particle
   DoubleVect flux_conductif_tot_interf_;
+
+  // temperature of each particle
+  DoubleVect particles_temperature_;
+
   DoubleVect T_P2_moy_;
   int flag_correction_flux_thermique_;
   double phi_ref_correction_flux_thermique_;

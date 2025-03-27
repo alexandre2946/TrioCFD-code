@@ -4987,7 +4987,7 @@ int Navier_Stokes_FT_Disc::trilinear_interpolation_elem(const DoubleTab& indicat
               double yfact=fabs((coord_elem_interp(1)-coord_elem_0(1))/delta_i(1));
               double zfact=fabs((coord_elem_interp(2)-coord_elem_0(2))/delta_i(2));
 
-              resu(fa7)=(1-zfact)*((1-yfact)*((1-xfact)*(valeurs_champ(elem_voisins(0))) + xfact*(valeurs_champ(elem_voisins(1)))) +
+              resu(fa7) =(1-zfact)*((1-yfact)*((1-xfact)*(valeurs_champ(elem_voisins(0))) + xfact*(valeurs_champ(elem_voisins(1)))) +
                                    yfact*((1-xfact)*(valeurs_champ(elem_voisins(2))) + xfact*(valeurs_champ(elem_voisins(3))))) +
                         zfact*((1-yfact)*((1-xfact)*(valeurs_champ(elem_voisins(4))) + xfact*(valeurs_champ(elem_voisins(5)))) +
                                yfact*((1-xfact)*(valeurs_champ(elem_voisins(6))) + xfact*(valeurs_champ(elem_voisins(7)))));
