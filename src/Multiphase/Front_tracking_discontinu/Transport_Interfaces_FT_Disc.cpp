@@ -10550,6 +10550,9 @@ int Transport_Interfaces_FT_Disc::get_champ_post_FT(const Motcle& champ, Postrai
       res = 1;
     }
 
+
+  Cerr << "Transport_Interfaces_FT_Disc::get_champ_post_FT end" << finl;
+
   return res;
 }
 

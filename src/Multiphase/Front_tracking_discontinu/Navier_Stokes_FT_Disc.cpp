@@ -6386,7 +6386,9 @@ DoubleTab& Navier_Stokes_FT_Disc::derivee_en_temps_inco(DoubleTab& vpoint)
         const DoubleTab& distance_interface_sommets = eq_transport.get_update_distance_interface_sommets();
 
         calculer_gradient_indicatrice(indicatrice, distance_interface_sommets, gradient_i);
-        calculer_champ_forces_superficielles(maillage, gradient_i, variables_internes().potentiel_elements, variables_internes().potentiel_faces, variables_internes().terme_source_interfaces);
+
+        Cerr << "Do not compute calculer_champ_forces_superficielles" << finl;
+        //calculer_champ_forces_superficielles(maillage, gradient_i, variables_internes().potentiel_elements, variables_internes().potentiel_faces, variables_internes().terme_source_interfaces);
 
         if (is_solid_particle) calculer_champ_forces_collisions(indicatrice.valeurs(), terme_source_collisions, eq_transport, eq_transport_non_const, refeq_transport, maillage); //HMS
         if (flag_correction_trainee) calculer_correction_trainee(terme_correction_trainee, eq_transport, eq_transport_non_const, refeq_transport, maillage);

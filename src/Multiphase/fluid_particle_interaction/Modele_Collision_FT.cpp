@@ -94,6 +94,7 @@ int Modele_Collision_FT::lire_motcle_non_standard(const Motcle& mot, Entree& is)
     {
       Motcles mots;
       mots.add("hybrid_esi");
+      mots.add("hybrid_esi_v2");
       mots.add("breugem");
       Motcle motbis;
       is >> motbis;
@@ -105,6 +106,9 @@ int Modele_Collision_FT::lire_motcle_non_standard(const Motcle& mot, Entree& is)
           modele_collision_ = Modele_Collision_FT::HYBRID_ESI;
           break;
         case 1:
+          modele_collision_ = Modele_Collision_FT::HYBRID_ESI_V2;
+          break;
+        case 2:
           modele_collision_ = Modele_Collision_FT::BREUGEM;
           break;
         default:
@@ -370,13 +374,29 @@ void  Modele_Collision_FT::calculer_force_contact(DoubleTab& force_contact, int&
         int isPhaseCompression = prod_scal <= 0;
         double le_e_eff = isPhaseCompression ? 1 : e_eff(compo, voisin);
         double la_raideur = raideur(compo, voisin);
-        //double amortisseur = -1*(masse_eff * log(ed)) / (tau_coll); //EB
-
         for (int d = 0; d < dimension; d++)
           {
             force_contact(d)=-1 * le_e_eff * le_e_eff * la_raideur * next_dist_int * norm(d);
           }
+      }
+      break;
+    case Modele_Collision_FT::HYBRID_ESI_V2:
+      {
+        DoubleTab& raideur=get_raideur();
+        DoubleTab& e_eff=get_e_eff();
+        if (isFirstStepOfCollision)
+          {
+            raideur(compo,voisin)=(masse_eff * (pow(M_PI,2)+ pow(log(ed), 2))) / pow(tau_coll_, 2);
+            e_eff(compo,voisin)=ed * 1;  // exp(-35 / (Stb + 1e-6));
+          }
 
+        int isPhaseCompression = prod_scal <= 0;
+        double le_e_eff = isPhaseCompression ? 1 : e_eff(compo, voisin);
+        double la_raideur = raideur(compo, voisin);
+        for (int d = 0; d < dimension; d++)
+          {
+            force_contact(d)=-1 * le_e_eff * le_e_eff * la_raideur * next_dist_int * norm(d);
+          }
       }
       break;
     case Modele_Collision_FT::BREUGEM:

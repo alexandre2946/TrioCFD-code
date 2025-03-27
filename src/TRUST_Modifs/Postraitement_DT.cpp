@@ -19,6 +19,7 @@
 #include <Postraitement_DT.h>
 #include <SFichier.h>
 #include <Operateur.h>
+#include <Statistiques.h>
 
 Implemente_instanciable(Postraitement_DT, "Postraitement_DT", Postraitement);
 
@@ -31,118 +32,123 @@ Implemente_instanciable(Postraitement_DT, "Postraitement_DT", Postraitement);
  * @param is Input stream.
  * @return Entree& The modified input stream.
  */
-Entree& Postraitement_DT::readOn(Entree& is) {
-	// read input has standard Postraitement
-	Postraitement::readOn(is);
+Entree& Postraitement_DT::readOn(Entree& is)
+{
+  // read input has standard Postraitement
+  Postraitement::readOn(is);
 
-	// Remove file extension from nom_fich_ that was automatically added
-	std::string file_name(nom_fich_);
-	size_t last_dot_pos = file_name.find_last_of('.');
-	if (last_dot_pos != std::string::npos)
-		nom_fich_ = file_name.substr(0, last_dot_pos);
+  // Remove file extension from nom_fich_ that was automatically added
+  std::string file_name(nom_fich_);
+  size_t last_dot_pos = file_name.find_last_of('.');
+  if (last_dot_pos != std::string::npos)
+    nom_fich_ = file_name.substr(0, last_dot_pos);
 
-	// get problem
-	const Probleme_base& problem = ref_cast(Probleme_base, mon_probleme.valeur());
+  // get problem
+  const Probleme_base& problem = ref_cast(Probleme_base, mon_probleme.valeur());
 
-	// Open file
-	SFichier file;
-	file.ouvrir(nom_fich(), ios::out);
+  // Open file
+  SFichier file;
+  file.ouvrir(nom_fich(), ios::out);
 
-	// Write description
-	file << "File generated from Postraitement_DT class.\n\n";
+  // Write description
+  file << "File generated from Postraitement_DT class.\n\n";
 
-	file << format("Description:\n", "\033[1m");
-	file << "This file contains the time steps computed for each equations, has well has the minimum, maximum and effective time steps.\n";
-	file << "All values are in seconds.\n\n";
+  file << format("Description:\n", "\033[1m");
+  file << "This file contains the time steps computed for each equations, has well has the minimum, maximum and effective time steps.\n";
+  file << "All values are in seconds.\n\n";
 
-	// Write equations type and name
-	file << format("Equations [type and name]:\n", "\033[1m");
-	for (int index = 0; index < problem.nombre_d_equations(); index++) {
-		const Nom& equation_type = problem.equation(index).que_suis_je();
-		const Nom& equation_name = problem.equation(index).le_nom();
+  // Write equations type and name
+  file << format("Equations [type and name]:\n", "\033[1m");
+  for (int index = 0; index < problem.nombre_d_equations(); index++)
+    {
+      const Nom& equation_type = problem.equation(index).que_suis_je();
+      const Nom& equation_name = problem.equation(index).le_nom();
 
-		std::ostringstream oss;
-		oss << "\t" << std::left << std::setw(47) << equation_type 
-			<< std::setw(column_gap) << "";
-		oss << std::left << std::setw(column_width) <<equation_name 
-			<< std::setw(column_gap) << "\n";
+      std::ostringstream oss;
+      oss << "\t" << std::left << std::setw(47) << equation_type
+          << std::setw(column_gap) << "";
+      oss << std::left << std::setw(column_width) <<equation_name
+          << std::setw(column_gap) << "\n";
 
-		file << oss.str();
-	}
-	file << "\n";
+      file << oss.str();
+    }
+  file << "\n";
 
-	// print the color code used
-	if (formatting_flag) {
-		file << "\033[1mColor code:\n";
-		
-		// write
-		file << formatter_minimum << "\tMinimum" << formatter_reset
-		     << ":   The minimum value among all time steps for the given time.\n"
-		     << formatter_maximum << "\tMaximum" << formatter_reset
-			 << ":   The maximum value among all time steps for the given time.\n"
-			 << formatter_effective << "\tEffective" << formatter_reset
-			 << ": The time step value actually used for computation at the given time."
-			 << "\033[0m\n\n";
-	}
+  // print the color code used
+  if (formatting_flag)
+    {
+      file << "\033[1mColor code:\n";
 
-	// write the header
-	if (formatting_flag)
-		file << "\033[1m"; // bold
+      // write
+      file << formatter_minimum << "\tMinimum" << formatter_reset
+           << ":   The minimum value among all time steps for the given time.\n"
+           << formatter_maximum << "\tMaximum" << formatter_reset
+           << ":   The maximum value among all time steps for the given time.\n"
+           << formatter_effective << "\tEffective" << formatter_reset
+           << ": The time step value actually used for computation at the given time."
+           << "\033[0m\n\n";
+    }
 
-	//write_text_column(buffer, buffer_size, "Time");
-	file << write_text_column("Time");
+  // write the header
+  if (formatting_flag)
+    file << "\033[1m"; // bold
 
-	for (int index_equation = 0;
-			index_equation < problem.nombre_d_equations(); index_equation++) {
+  file << write_text_column("Time");
+  file << write_text_column("Duration");
 
-		file << separator;
+  for (int index_equation = 0;
+       index_equation < problem.nombre_d_equations(); index_equation++)
+    {
 
-		const Equation_base& equation = ref_cast(Equation_base, problem.equation(index_equation));
+      file << separator;
 
-		const Nom& equation_name = equation.le_nom();
-		file << write_text_column(&(*equation_name));
+      const Equation_base& equation = ref_cast(Equation_base, problem.equation(index_equation));
 
-		// also print each operators of the equation
-		for (int index_operator = 0;
-				index_operator < equation.nombre_d_operateurs(); index_operator++) {
+      const Nom& equation_name = equation.le_nom();
+      file << write_text_column(&(*equation_name));
 
-			//const Nom& operator_name = equation.operateur(index_operator).type();
-			std::string operator_name(typeid(equation.operateur(index_operator)).name());
+      // also print each operators of the equation
+      for (int index_operator = 0;
+           index_operator < equation.nombre_d_operateurs(); index_operator++)
+        {
 
-			// remove the integers at the begining of operator_name
-			size_t pos = 0;
-			while (pos < operator_name.size() && std::isdigit(operator_name[pos]))
-				++pos;
+          //const Nom& operator_name = equation.operateur(index_operator).type();
+          std::string operator_name(typeid(equation.operateur(index_operator)).name());
 
-			operator_name = operator_name.substr(pos);
+          // remove the integers at the begining of operator_name
+          size_t pos = 0;
+          while (pos < operator_name.size() && std::isdigit(operator_name[pos]))
+            ++pos;
 
-			// then write it to the file
-			std::string text = write_text_column(operator_name.c_str());
-			file << "\033[0m" << text;
+          operator_name = operator_name.substr(pos);
 
-			if (formatting_flag)
-				file << "\033[1m";
-		}
-	}
+          // then write it to the file
+          std::string text = write_text_column(operator_name.c_str());
+          file << "\033[0m" << text;
 
-	file << separator;
-	file << write_text_column("Minimum");
+          if (formatting_flag)
+            file << "\033[1m";
+        }
+    }
 
-	file << separator;
-	file << write_text_column("Maximum");
+  file << separator;
+  file << write_text_column("Minimum");
 
-	file << separator;
-	file << write_text_column("Effective");
+  file << separator;
+  file << write_text_column("Maximum");
 
-	if (formatting_flag)
-		file << "\033[0m"; // normal
+  file << separator;
+  file << write_text_column("Effective");
 
-	file << "\n";
+  if (formatting_flag)
+    file << "\033[0m"; // normal
 
-	// close the file
-	file.close();
+  file << "\n";
 
-	return is;
+  // close the file
+  file.close();
+
+  return is;
 }
 
 /**
@@ -153,9 +159,10 @@ Entree& Postraitement_DT::readOn(Entree& is) {
  * @param os Output stream.
  * @return Sortie& The unchanged output stream.
  */
-Sortie& Postraitement_DT::printOn(Sortie& os) const {
-	// do nothing
-	return os;
+Sortie& Postraitement_DT::printOn(Sortie& os) const
+{
+  // do nothing
+  return os;
 }
 
 /**
@@ -165,7 +172,8 @@ Sortie& Postraitement_DT::printOn(Sortie& os) const {
  *
  * @param param Reference to the parameter object.
  */
-void Postraitement_DT::set_param(Param& param) {
+void Postraitement_DT::set_param(Param& param)
+{
   Postraitement::set_param(param);
 
   param.ajouter("column_width",       &column_width);
@@ -176,96 +184,108 @@ void Postraitement_DT::set_param(Param& param) {
 
 /**
  * @brief Appends a new line to the output file with the estimated time steps.
- * 
+ *
  * This method writes the current simulation time followed by the time step values
  * for each equation of the problem to the output file.
  */
-void Postraitement_DT::postraiter(int) {
-	// get problem and time scheme
-	const Probleme_base& problem = ref_cast(Probleme_base, mon_probleme.valeur());
-	const Schema_Temps_base& time_scheme = ref_cast(Schema_Temps_base, problem.schema_temps());
+void Postraitement_DT::postraiter(int)
+{
+  // get problem and time scheme
+  const Probleme_base& problem = ref_cast(Probleme_base, mon_probleme.valeur());
+  const Schema_Temps_base& time_scheme = ref_cast(Schema_Temps_base, problem.schema_temps());
 
-	// get all time steps (equations, minimum, maximum and effective time steps)
-	std::vector<double> time_steps;
-	// and get all the time steps of each operator
-	std::vector<std::vector<double>> time_steps_operators;
+  // get all time steps (equations, minimum, maximum and effective time steps)
+  std::vector<double> time_steps;
+  // and get all the time steps of each operator
+  std::vector<std::vector<double>> time_steps_operators;
 
-	for (int index_equation = 0;
-			index_equation < problem.nombre_d_equations(); index_equation++) {
+  for (int index_equation = 0;
+       index_equation < problem.nombre_d_equations(); index_equation++)
+    {
 
-		const Equation_base& equation = ref_cast(Equation_base, problem.equation(index_equation));
+      const Equation_base& equation = ref_cast(Equation_base, problem.equation(index_equation));
 
-		double dt_equation = equation.calculer_pas_de_temps();
-		time_steps.push_back(dt_equation);
+      double dt_equation = equation.calculer_pas_de_temps();
+      time_steps.push_back(dt_equation);
 
-		// also compute the time step of each operators of the equation
-		time_steps_operators.push_back(std::vector<double>());
-		for (int index_operator = 0;
-				index_operator < equation.nombre_d_operateurs(); index_operator++) {
+      // also compute the time step of each operators of the equation
+      time_steps_operators.push_back(std::vector<double>());
+      for (int index_operator = 0;
+           index_operator < equation.nombre_d_operateurs(); index_operator++)
+        {
 
-			double dt_operator = equation.operateur(index_operator).calculer_pas_de_temps();
-			time_steps_operators.back().push_back(dt_operator);
-		}
-	}
+          double dt_operator = equation.operateur(index_operator).calculer_pas_de_temps();
+          time_steps_operators.back().push_back(dt_operator);
+        }
+    }
 
-	time_steps.push_back(time_scheme.pas_temps_min());
-	time_steps.push_back(time_scheme.pas_temps_max());
+  time_steps.push_back(time_scheme.pas_temps_min());
+  time_steps.push_back(time_scheme.pas_temps_max());
 
-	double effective_time_step = problem.calculer_pas_de_temps();
-	time_steps.push_back(effective_time_step);
+  double effective_time_step = problem.calculer_pas_de_temps();
+  time_steps.push_back(effective_time_step);
 
-	// find the minimum and maximum time step values
-	auto [min_it, max_it] = std::minmax_element(time_steps.begin(), time_steps.end());
+  // find the minimum and maximum time step values
+  auto [min_it, max_it] = std::minmax_element(time_steps.begin(), time_steps.end());
 
-	// only the master process write in the file
-	if (Process::je_suis_maitre()) {
-	
-		// Open file
-		SFichier file;
-		file.ouvrir(nom_fich(), ios::app);
+  // only the master process write in the file
+  if (Process::je_suis_maitre())
+    {
 
-		// Get current simulation time and write it to the file 
-		double current_time = time_scheme.temps_courant();
-		file << write_float_column(current_time);
+      // Open file
+      SFichier file;
+      file.ouvrir(nom_fich(), ios::app);
 
+      // Get current simulation time and write it to the file
+      double current_time = time_scheme.temps_courant();
+      file << write_float_column(current_time);
 
-		// Write all time steps
-		for (size_t index_equation = 0;
-				index_equation < time_steps.size(); index_equation++) {
-	
-			file << separator;
-	
-			double time_step = time_steps[index_equation];
-	
-			// format differently the output if its a minimum or maximum value
-			std::string formatter;
-			if       (time_step == effective_time_step)
-				formatter = formatter_effective;
-			else if (time_step == *min_it)
-				formatter = formatter_minimum;
-			else if (time_step == *max_it)
-				formatter = formatter_maximum;
-	
-			// write the value in the buffer
-			std::string text = write_float_column(time_step);
-	
-			// write to the files with formatter
-			file << format(text, formatter);
-	
-			// then write the operators time steps
-			if (index_equation < time_steps_operators.size()) {
-				for (double time_step_operator: time_steps_operators[index_equation]) {
-					text = write_float_column(time_step_operator);
-					file << format(text, formatter_operator);
-				}
-			}
-		}
+      // Get the current computation time and compare with the previous one to get
+      // the computation duration for this timestep
+      double duration = Statistiques::get_time_now();
+      file << write_float_column(duration - previous_duration);
+      previous_duration = duration;
 
-		file << "\n";
+      // Write all time steps
+      for (size_t index_equation = 0;
+           index_equation < time_steps.size(); index_equation++)
+        {
 
-		// close the file
-		file.close();
-	}
+          file << separator;
+
+          double time_step = time_steps[index_equation];
+
+          // format differently the output if its a minimum or maximum value
+          std::string formatter;
+          if       (time_step == effective_time_step)
+            formatter = formatter_effective;
+          else if (time_step == *min_it)
+            formatter = formatter_minimum;
+          else if (time_step == *max_it)
+            formatter = formatter_maximum;
+
+          // write the value in the buffer
+          std::string text = write_float_column(time_step);
+
+          // write to the files with formatter
+          file << format(text, formatter);
+
+          // then write the operators time steps
+          if (index_equation < time_steps_operators.size())
+            {
+              for (double time_step_operator: time_steps_operators[index_equation])
+                {
+                  text = write_float_column(time_step_operator);
+                  file << format(text, formatter_operator);
+                }
+            }
+        }
+
+      file << "\n";
+
+      // close the file
+      file.close();
+    }
 }
 
 /**
@@ -276,53 +296,56 @@ void Postraitement_DT::postraiter(int) {
  * @return std::string Formatted string.
  */
 std::string Postraitement_DT::format(
-		const std::string input, const std::string formatter) const {
-	
-	if (formatting_flag)
-		return formatter + input + formatter_reset;
-	else
-		return input;
+  const std::string input, const std::string formatter) const
+{
+
+  if (formatting_flag)
+    return formatter + input + formatter_reset;
+  else
+    return input;
 }
 
 /**
  * @brief Writes a floating point value to a character buffer.
- * 
- * This function formats a floating point value into scientific notation if 
+ *
+ * This function formats a floating point value into scientific notation if
  * greater than 1, ensuring a fixed column width with a trailing gap.
- * 
+ *
  * @tparam Float Floating point type (e.g., float, double).
  * @param value Floating point value to format.
  * @return std::string The formatted string.
  */
 template <class Float>
 std::string Postraitement_DT::write_float_column(
-		const Float value) const {
+  const Float value) const
+{
 
-	// Ensure Float is a floating-point type
-	static_assert(std::is_floating_point<Float>::value, "write_float_column requires a floating-point type (float or double).");
+  // Ensure Float is a floating-point type
+  static_assert(std::is_floating_point<Float>::value, "write_float_column requires a floating-point type (float or double).");
 
-	std::ostringstream oss;
-	oss << std::left << std::scientific << std::setprecision(number_of_decimals)
-		<< std::setw(column_width) << value
-		<< std::setw(column_gap) << "";
-	
-	return oss.str();
+  std::ostringstream oss;
+  oss << std::left << std::scientific << std::setprecision(number_of_decimals)
+      << std::setw(column_width) << value
+      << std::setw(column_gap) << "";
+
+  return oss.str();
 }
 
 /**
  * @brief Writes a text value to a character buffer.
- * 
+ *
  * This function formats a text string into a fixed-width column with a trailing gap.
- * 
+ *
  * @param text Text string to format.
  * @return std::string The formatted string.
  */
 std::string Postraitement_DT::write_text_column(
-		const char text[]) const {
+  const char text[]) const
+{
 
-	std::ostringstream oss;
-	oss << std::left << std::setw(column_width) << text
-		<< std::setw(column_gap) << "";
+  std::ostringstream oss;
+  oss << std::left << std::setw(column_width) << text
+      << std::setw(column_gap) << "";
 
-	return oss.str();
+  return oss.str();
 }

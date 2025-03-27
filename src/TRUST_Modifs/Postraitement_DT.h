@@ -25,76 +25,81 @@
  * The header of the file is created during readOn and a new line is added everytime
  * the 'postraiter' method is called.
  */
-class Postraitement_DT : public Postraitement {
+class Postraitement_DT : public Postraitement
+{
 
-		/////////////////
-		// declaration //
-		/////////////////
+  /////////////////
+  // declaration //
+  /////////////////
 
-	private:
+private:
 
-		Declare_instanciable(Postraitement_DT);
+  Declare_instanciable(Postraitement_DT);
 
-		///////////
-		// enums //
-		///////////
+  ///////////
+  // enums //
+  ///////////
 
-	public:
-		
-		// This enum is used in formatting function to specify whether the value
-		// that need to be formated needs to be formatted as a the minimum, maximum,
-		// as the effective timestep value or an operator value
-		enum Formatting {
-			Min,
-			Max,
-			Effective,
-			Operator,
-			None,
-		};
+public:
 
-		/////////////
-		// methods //
-		/////////////
+  // This enum is used in formatting function to specify whether the value
+  // that need to be formated needs to be formatted as a the minimum, maximum,
+  // as the effective timestep value or an operator value
+  enum Formatting
+  {
+    Min,
+    Max,
+    Effective,
+    Operator,
+    None,
+  };
 
-		void set_param(Param& param) override;
-		void postraiter(int) override;
+  /////////////
+  // methods //
+  /////////////
 
-	private:
+  void set_param(Param& param) override;
+  void postraiter(int) override;
 
-		// method that apply formatting
-		std::string format(const std::string input, const std::string formatter) const;
+private:
 
-		// two auxilary methods to format floating points and text values into columns
-		template <class Float>
-		std::string write_float_column(const Float value) const;
+  // method that apply formatting
+  std::string format(const std::string input, const std::string formatter) const;
 
-		std::string write_text_column(const char text[]) const;
+  // two auxilary methods to format floating points and text values into columns
+  template <class Float>
+  std::string write_float_column(const Float value) const;
 
-		////////////////
-		// attributes //
-		////////////////
+  std::string write_text_column(const char text[]) const;
 
-	private:
-		
-		// text formatting (in number of characters)
-		int column_width       = 14;
-		int column_gap         = 1;
+  ////////////////
+  // attributes //
+  ////////////////
 
-		// number of decimal number if floating points values
-		int number_of_decimals = 7;
+private:
 
-		// flag to activate or not formatting
-		int formatting_flag    = 1; // by default formatting is active
+  // text formatting (in number of characters)
+  int column_width       = 14;
+  int column_gap         = 1;
 
-		// formatting strings
-		static constexpr const char* formatter_minimum   = "\033[31;1m"; // red bold
-		static constexpr const char* formatter_maximum   = "\033[32;1m"; // green bold
-		static constexpr const char* formatter_effective = "\033[33;1m"; // yellow bold
-		static constexpr const char* formatter_operator  = "\033[2m";    // faint 
-		static constexpr const char* formatter_reset     = "\033[0m";
+  // number of decimal number if floating points values
+  int number_of_decimals = 7;
 
-		// columns separator
-		static constexpr const char* separator = "| ";
+  // flag to activate or not formatting
+  int formatting_flag    = 1; // by default formatting is active
+
+  // formatting strings
+  static constexpr const char* formatter_minimum   = "\033[31;1m"; // red bold
+  static constexpr const char* formatter_maximum   = "\033[32;1m"; // green bold
+  static constexpr const char* formatter_effective = "\033[33;1m"; // yellow bold
+  static constexpr const char* formatter_operator  = "\033[2m";    // faint
+  static constexpr const char* formatter_reset     = "\033[0m";
+
+  // columns separator
+  static constexpr const char* separator = "| ";
+
+  // the previous time (~timestamp) the postraiter method was called
+  double previous_duration = 0;
 };
 
 #endif

@@ -145,7 +145,7 @@ private:
   static IntVect Nb_Noeuds_modele_collision;
   static DoubleVect Origine_modele_collision;
 
-  enum Modele_collision { HYBRID_ESI, BREUGEM };
+  enum Modele_collision { HYBRID_ESI, HYBRID_ESI_V2, BREUGEM };
   Modele_collision modele_collision_;
 
 };
