@@ -1384,7 +1384,7 @@ inline void remplissage(const DoubleTab& tab, DoubleTab *ftab)
  *    qu'il existe).
  *
  */
-int Transport_Marqueur_FT::get_champ_post_FT(const Motcle& champ, Postraitement_base::Localisation loc, DoubleTab *ftab) const
+int Transport_Marqueur_FT::get_field(const Motcle& champ, Localization localization, DoubleTab *ftab) const
 {
   int res = 1;
 
@@ -1490,7 +1490,7 @@ int Transport_Marqueur_FT::get_champ_post_FT(const Motcle& champ, Postraitement_
               break;
             }
           default:
-            Cerr << "Error for the method Transport_Marqueur_FT::get_champ_post_FT" << finl;
+            Cerr << "Error for the method Transport_Marqueur_FT::get_field" << finl;
             Process::exit();
           }
       res = 1;
@@ -1498,12 +1498,12 @@ int Transport_Marqueur_FT::get_champ_post_FT(const Motcle& champ, Postraitement_
 
   return res;
 }
-/*! @brief Voir l'autre get_champ_post_FT.
+/*! @brief Voir l'autre get_field.
  *
  * Cette fonction est specifique aux champs d'entiers.
  *
  */
-int Transport_Marqueur_FT::get_champ_post_FT(const Motcle& champ, Postraitement_base::Localisation loc, IntTab *itab) const
+int Transport_Marqueur_FT::get_field(const Motcle& champ, Localization localization, IntTab *itab) const
 {
   return 0;
 }

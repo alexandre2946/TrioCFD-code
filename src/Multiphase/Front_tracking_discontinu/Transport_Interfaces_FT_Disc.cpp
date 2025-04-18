@@ -8468,7 +8468,7 @@ void Transport_Interfaces_FT_Disc::fill_map_post_FT(Transport_Interfaces_FT_Disc
  *    qu'il existe).
  *
  */
-int Transport_Interfaces_FT_Disc::get_champ_post_FT(const Motcle& champ, Postraitement_base::Localisation loc, DoubleTab *ftab) const
+int Transport_Interfaces_FT_Disc::get_field(const Motcle& champ, Localization localization, DoubleTab *ftab) const
 {
   int res = 1;
 
@@ -8536,12 +8536,12 @@ int Transport_Interfaces_FT_Disc::get_champ_post_FT(const Motcle& champ, Postrai
   return res;
 }
 
-/*! @brief Voir l'autre get_champ_post_FT.
+/*! @brief Voir l'autre get_field.
  *
  * Cette fonction est specifique aux champs d'entiers.
  *
  */
-int Transport_Interfaces_FT_Disc::get_champ_post_FT(const Motcle& champ, Postraitement_base::Localisation loc, IntTab *itab) const
+int Transport_Interfaces_FT_Disc::get_field(const Motcle& champ, Localization localization, IntTab *itab) const
 {
   int res = 1;
 
@@ -8654,7 +8654,7 @@ int Transport_Interfaces_FT_Disc::get_champ_post_FT(const Motcle& champ, Postrai
                 break;
               }
             default:
-              Cerr << "Transport_Interfaces_FT_Disc::get_champ_post_FT : unexpected case" << finl;
+              Cerr << "Transport_Interfaces_FT_Disc::get_field: unexpected case" << finl;
               assert(0);
               Process::exit();
             }

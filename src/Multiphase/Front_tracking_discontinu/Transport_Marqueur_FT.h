@@ -25,6 +25,7 @@
 
 #include <Transport_Interfaces_FT_Disc.h>
 #include <Marqueur_FT.h>
+#include <Localization.h>
 
 enum Methode_calcul_vp { INTERPOLEE, BILAN_QDM };
 enum Methode_couplage { SUIVI, ONE_WAY_COUPLING, TWO_WAY_COUPLING };
@@ -159,8 +160,8 @@ public:
   /////////////////////////////////////////////////////
 
   //methodes utilisees pour le post-traitement des quantites lagrangiennes
-  int get_champ_post_FT(const Motcle& champ, Postraitement_base::Localisation loc, DoubleTab *ftab = 0) const override;
-  int get_champ_post_FT(const Motcle& champ, Postraitement_base::Localisation loc, IntTab *itab = 0) const override;
+  int get_field(const Motcle& champ, Localization localization, DoubleTab *ftab = nullptr) const override;
+  int get_field(const Motcle& champ, Localization localization, IntTab *itab = nullptr) const override;
 
   const DoubleTab& calculer_valeurs_densite(DoubleTab& val_densite) const;
   const DoubleTab& calculer_valeurs_volumes(DoubleTab& val_volume) const;

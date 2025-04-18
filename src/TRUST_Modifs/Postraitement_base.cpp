@@ -1,5 +1,5 @@
 /****************************************************************************
-* Copyright (c) 2015 - 2016, CEA
+* Copyright (c) 2024, CEA
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -12,65 +12,63 @@
 * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *****************************************************************************/
-#ifndef Postraitement_ft_lata_included
-#define Postraitement_ft_lata_included
+#include <Postraitement_base.h>
+#include <Motcle.h>
+#include <Param.h>
 
-#include <Postraitement.h>
-#include <vector>
-#include <TRUST_Ref.h>
+Implemente_base_sans_constructeur(Postraitement_base,"Postraitement_base",Objet_U);
+// XD postraitement_base objet_lecture postraitement_base -1 not_set
 
-class Transport_Interfaces_FT_Disc;
-class Motcle;
-class Maillage_FT_Disc;
-class Fichier_Lata;
-class Comm_Group;
 
-class Postraitement_ft_lata : public Postraitement {
-		
-		Declare_instanciable(Postraitement_ft_lata);
-	
-		///////////
-		// enums //
-		///////////
-	
-	private:
-		
-		/////////////
-		// methods //
-		/////////////
-	
-	public:
-	
-		void set_param(Param& param) override;
-		int lire_motcle_non_standard(const Motcle&, Entree&) override;
-	
-		int write_extra_mesh() override;
-		void postprocess_field_values() override;
-	
-	protected:
-	
-		void lire_champ_interface(Entree&);
-	
-		int ecrire_maillage_ft_disc();
-		int filter_out_virtual_fa7(IntTab& new_fa7);
-		void filter_out_array(const DoubleTab& dtab, DoubleTab& new_dtab) const;
-	
-		////////////////
-		// attributes //
-		////////////////
-	
-		// L'equation de transport contenant les interfaces a postraiter
-		OBS_PTR(Transport_Interfaces_FT_Disc) refequation_interfaces;
-		Nom id_domaine_;  // INTERFACES or PARTICULES - computed in ecrire_maillage_ft_disc()
-	
-		// Renumbering array for interface facettes to keep only real facettes - updated at each time step!
-		std::vector<int> renum_;
-		bool no_virtuals_ = false;  // whether to exclude virtual elements when writing out interface mesh and fields.
-	 
-	private:
-	
-		// fields to postprocess (map with name of fields as key, and localization has value)
-		std::map<std::string, Localization> fields_to_postporecess;
-};
+const char * const Postraitement_base::demande_description = "DESCRIPTION";
 
-#endif
+Postraitement_base::Postraitement_base() :
+  temps_(0.)
+{
+}
+
+Sortie& Postraitement_base::printOn(Sortie& os) const
+{
+  return os;
+}
+
+Entree& Postraitement_base::readOn(Entree& is)
+{
+  Cerr<<"Reading of data for a "<<que_suis_je()<<" post-processing object "<<finl;
+  Param param(que_suis_je());
+  set_param(param);
+  param.lire_avec_accolades_depuis(is);
+  return is;
+}
+
+int Postraitement_base::lire_motcle_non_standard(const Motcle& mot, Entree& is)
+{
+  return -1;
+}
+
+void Postraitement_base::associer_nom_et_pb_base(const Nom& nom,
+                                                 const Probleme_base& mon_pb)
+{
+  le_nom_ = nom;
+  mon_probleme = mon_pb;
+}
+
+const Nom& Postraitement_base::le_nom() const
+{
+  return le_nom_;
+}
+
+void Postraitement_base::mettre_a_jour(double temps)
+{
+  temps_ = temps;
+}
+
+int Postraitement_base::sauvegarder(Sortie& os) const
+{
+  return 0;
+}
+
+int Postraitement_base::reprendre(Entree& is)
+{
+  return 0;
+}

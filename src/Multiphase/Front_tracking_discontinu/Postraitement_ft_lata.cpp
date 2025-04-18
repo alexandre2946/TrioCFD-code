@@ -159,41 +159,49 @@ int Postraitement_ft_lata::lire_motcle_non_standard(const Motcle& mot, Entree& i
  */
 void Postraitement_ft_lata::lire_champ_interface(Entree& is)
 {
-  Motcle nom_champ, loc_lu;
+  Motcle field_name, loc_lu;
   const Transport_Interfaces_FT_Disc& eq_interfaces = refequation_interfaces.valeur();
 
   while (1)
     {
-      is >> nom_champ;
-      if (nom_champ == "}")  break;
-
-      is >> loc_lu;
-      Localisation loc = SOMMETS;
-      if (loc_lu == "som")
-        loc = SOMMETS;
-      else if (loc_lu == "elem")
-        loc = ELEMENTS;
-      else
+	  // read the field name
+      is >> field_name;
+      if (field_name == "}")  break;
+	  
+	  // read the localization of the field
+      is >> word_localization;
+      Localization localization = Localization::Unknown;
+      if        (word_localization == "som") {
+        localization = Localization::Vertex;
+      } else if (localization == "elem") {
+        localization = Localization::Element;
+      } else if (localization == "particle") {
+        localization = Localization::Particle;
+      } else
         {
           Cerr << "Error for Postraitement_ft_lata::lire_champ_interface :\n";
           Cerr << loc_lu <<" has been readen. "<< finl;
-          Cerr << " Keywords 'som' or 'elem' were expected after the field name '" << nom_champ << "'" << finl;
+          Cerr << " Keywords 'som', 'elem' or 'particle' were expected after the field name '" << field_name << "' (got '" << localization << "')." << finl;
           Process::exit();
         }
+	  assert(localization != Localization::Unknown);
 
-      if (!eq_interfaces.get_champ_post_FT(nom_champ, loc, (DoubleTab*) 0) && !eq_interfaces.get_champ_post_FT(nom_champ, loc, (IntTab*) 0))
+      // check if we can retrieve this field
+      if (!eq_interfaces.get_field(field_name, localization, (DoubleTab*) nullptr) && !eq_interfaces.get_field(field_name, localization, (IntTab*) nullptr))
         {
           Cerr << "Error for Postraitement_ft_lata::lire_champ_interface :\n";
-          Cerr << " The field '" << nom_champ << "' is not understood for the " << (eq_interfaces.que_suis_je()=="Transport_Marqueur_FT"?"particules":"interfaces") << " or not authorized at localisation '";
+          Cerr << " The field '" << field_name << "' is not understood for the " << (eq_interfaces.que_suis_je()=="Transport_Marqueur_FT"?"particules":"interfaces") << " or not authorized at localisation '";
           Nom tmp = ((loc == SOMMETS) ? "sommets" : "elements");
           Cerr << tmp << "'" << finl;
-          eq_interfaces.get_champ_post_FT(demande_description, loc, (DoubleTab*) 0);
-          eq_interfaces.get_champ_post_FT(demande_description, loc, (IntTab*) 0);
+          //eq_interfaces.get_field(demande_description, loc, (DoubleTab*) 0);
+          //eq_interfaces.get_field(demande_description, loc, (IntTab*) 0);
           Process::exit();
         }
+	
       Motcles& liste = loc == SOMMETS ? liste_champs_i_aux_sommets : liste_champs_i_aux_elements;
-      if (!liste.contient_(nom_champ))
-        liste.add(nom_champ);
+
+      if (!fields_to_postprocess.contains(field_name))
+        fields_to_postprocess[field_name] = localization;
     }
 }
 
@@ -313,11 +321,11 @@ void Postraitement_ft_lata::postprocess_field_values()
       for (int i = 0; i < nb_champs; i++)
         {
           const Motcle& nom_du_champ = liste[i];
-          if (eq_interfaces.get_champ_post_FT(nom_du_champ, loc, &dtab))
+          if (eq_interfaces.get_field(nom_du_champ, loc, &dtab))
             {
               // ok, le champ est dans ftab
             }
-          else if (eq_interfaces.get_champ_post_FT(nom_du_champ, loc, &itab))
+          else if (eq_interfaces.get_field(nom_du_champ, loc, &itab))
             {
               const int n = itab.dimension(0);
               const int m = itab.nb_dim() == 1 ? 1 : itab.dimension(1);
