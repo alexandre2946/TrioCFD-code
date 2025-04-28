@@ -160,8 +160,7 @@ public:
   /////////////////////////////////////////////////////
 
   //methodes utilisees pour le post-traitement des quantites lagrangiennes
-  int get_field(const Motcle& champ, Localization localization, DoubleTab *ftab = nullptr) const override;
-  int get_field(const Motcle& champ, Localization localization, IntTab *itab = nullptr) const override;
+  virtual void init_postprocess_map() override;
 
   const DoubleTab& calculer_valeurs_densite(DoubleTab& val_densite) const;
   const DoubleTab& calculer_valeurs_volumes(DoubleTab& val_volume) const;

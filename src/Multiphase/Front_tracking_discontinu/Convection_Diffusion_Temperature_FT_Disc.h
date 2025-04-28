@@ -51,7 +51,6 @@ public:
   double get_flux_to_face(const int num_face) const;
   double get_Twall_at_face(const int num_face) const;
   double get_Twall_at_elem(const int elem) const;
-  const double& get_tsat_constant() const;
   void get_flux_and_Twall(const int num_face,
                           double& flux, double& Twall) const;
   double get_Twall(const int num_face) const;
@@ -155,5 +154,22 @@ protected:
   Thermal_correction_discretization_method thermal_correction_discretization_method_=
     Thermal_correction_discretization_method::P1_ALL;
 
+  DoubleTab saturation_temperature_;
+
+public:
+
+  double saturation_temperature(int connected_component_number = 0) const;
+  const DoubleVect& get_saturation_temperature() const { return saturation_temperature_; }
+
+private:
+
+  double initial_saturation_temperature = 0;
+
+  enum class ConnectedComponentTemperatureMethod {
+  	Isotherm,
+	Anisotherm
+  };
+
+  ConnectedComponentTemperatureMethod connected_component_temperature_method = ConnectedComponentTemperatureMethod::Isotherm;
 };
 #endif

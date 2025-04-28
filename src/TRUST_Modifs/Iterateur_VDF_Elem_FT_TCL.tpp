@@ -48,7 +48,7 @@ inline void Iterateur_VDF_Elem<_TYPE_>::fill_flux_tables_(const int face, const 
             flux_bords(face, k) += coeff * flux[k];
             if ((indicatrice(elem1) != 0.) && (indicatrice(elem1) != 1.))
               {
-                Cerr << "echange_externe_impose face-no= " << face << " elem1= " << elem1 << " flux= " << flux(k) << finl;
+                //Cerr << "echange_externe_impose face-no= " << face << " elem1= " << elem1 << " flux= " << flux(k) << finl;
                 // Energy is not resolved in elem0 (mixed-cell)
                 eq_typee.mixed_elems().append_array(elem1);
                 eq_typee.lost_fluxes().append_array(flux(k));
@@ -63,7 +63,7 @@ inline void Iterateur_VDF_Elem<_TYPE_>::fill_flux_tables_(const int face, const 
 
             if ((indicatrice(elem2) != 0.) && (indicatrice(elem2) != 1.))
               {
-                Cerr << "echange_externe_impose face-no= " << face << " elem2= " << elem2 << " flux= " << flux(k) << finl;
+                //Cerr << "echange_externe_impose face-no= " << face << " elem2= " << elem2 << " flux= " << flux(k) << finl;
                 // Energy is not resolved in elem1 (mixed-cell)
                 eq_typee.mixed_elems().append_array(elem2);
                 eq_typee.lost_fluxes().append_array(-flux(k)); // see convention above, the flux should be taken with "-" for elems 1!

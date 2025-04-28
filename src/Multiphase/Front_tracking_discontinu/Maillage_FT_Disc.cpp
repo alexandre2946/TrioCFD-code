@@ -5439,15 +5439,15 @@ void Maillage_FT_Disc::calcul_courbure_sommets(ArrOfDouble& courbure_sommets, co
         {
           flag_tcl = 1;
           l_v = tcl.get_lv();
-          Postraitement_base::Localisation loc = Postraitement_base::SOMMETS;
-          Motcle nom_du_champ = "vitesse";
+          Localization localization = Localization::Vertex;
+          Motcle field_name = "vitesse";
           Cerr << "Validation and checking required in Maillage_FT_Disc::calcul_courbure_sommets" << finl;
           Process::exit();
           // Useless init to 0:
           // for (int ii=0; ii< nsom; ii++)
           //  for (int jj=0; jj< dim; jj++)
           //    vit(ii,jj) = 0.;
-          eq_interfaces.get_field(nom_du_champ, loc, &vit); // HACK !!!! (warning, try debug to make sure it works if you want to remove it!!)
+          eq_interfaces.get_field(field_name, localization, vit); // HACK !!!! (warning, try debug to make sure it works if you want to remove it!!)
 
           //  const Domaine_Cl_VDF& zclvdf = ref_cast(Domaine_Cl_VDF, domaine_cl);
           // It relies on the classical assumption in the FT module that the first equation is NS.

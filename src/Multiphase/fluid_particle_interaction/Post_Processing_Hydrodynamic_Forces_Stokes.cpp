@@ -151,14 +151,17 @@ void Post_Processing_Hydrodynamic_Forces_Stokes::compute_vinf_Stokes()
                                                      two_phase_fluid.fluide_phase(0));
   const double particle_radius = solid_particle.get_equivalent_radius();
   const int id_fluid_phase=two_phase_fluid.get_id_fluid_phase();
-  const double mu_f =two_phase_fluid.fluide_phase(id_fluid_phase).
-                     viscosite_dynamique().valeurs()(0, 0);
-  const double mu_p = two_phase_fluid.fluide_phase(1-id_fluid_phase).
-                      masse_volumique().valeurs()(0, 0);
-  const double rho_f =two_phase_fluid.fluide_phase(id_fluid_phase).
-                      viscosite_dynamique().valeurs()(0, 0);
+
+  const double mu_f =  two_phase_fluid.fluide_phase(id_fluid_phase).
+                       viscosite_dynamique().valeurs()(0, 0);
+  const double mu_p =  two_phase_fluid.fluide_phase(1-id_fluid_phase).
+                       viscosite_dynamique().valeurs()(0, 0);
+
+  const double rho_f = two_phase_fluid.fluide_phase(id_fluid_phase).
+                       masse_volumique().valeurs()(0, 0);
   const double rho_p = two_phase_fluid.fluide_phase(1-id_fluid_phase).
                        masse_volumique().valeurs()(0, 0);
+
   const double phi_mu=mu_p/mu_f;
   const DoubleTab& gravite = eq_ns.milieu().gravite().valeurs();
   DoubleVect vect_g(dimension);

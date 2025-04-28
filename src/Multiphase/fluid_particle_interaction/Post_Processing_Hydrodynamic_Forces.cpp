@@ -2367,9 +2367,20 @@ void Post_Processing_Hydrodynamic_Forces::compute_heat_transfer()
                                                           coord_neighbor_fluid_fa7_temp_2_, temp_P2);
           if (interp_T_P1_ok &&  interp_T_P2_ok)
             {
+
+              DoubleVect total_surface;
+			  total_surface.resize(nb_compo_tot);
+			  total_surface = 0.;
+              DoubleVect used_surface;
+			  used_surface.resize(nb_compo_tot);
+			  used_surface = 0.;
+          		total_heat_transfer_=0;
+
+
               for (int fa7=0; fa7<nb_fa7; fa7++)
                 {
                   int compo=compo_connexes_fa7(fa7);
+                  double Twall = eq_temp.saturation_temperature(compo);
                   if (!mesh.facette_virtuelle(fa7))
                     {
                       int elem_diph=domain.chercher_elements(les_cg_fa7(fa7,0),
@@ -2391,14 +2402,33 @@ void Post_Processing_Hydrodynamic_Forces::compute_heat_transfer()
                       double epsilon=0;
                       for (int dim=0; dim<dimension; dim++)
                         epsilon+= fabs(delta_i(dim)*fabs(les_normales_fa7(fa7,dim))); // la distance d'interpolation varie en fonction du raffinement du maillage
-                      heat_transfer_fa7_(fa7)=lambda_f*(-temp_P2(fa7)+4.*temp_P1(fa7)-3.*eq_temp.get_tsat_constant())/(2.*epsilon)*les_surfaces_fa7(fa7); // schema decentre avant d'ordre 2
+
+                      //total_surface(compo) += les_surfaces_fa7(fa7);
+					  if (temp_P1(fa7) == -1e15 || temp_P2(fa7) == -1e15 || delta_i(0) == -1e15 || delta_i(1) == -1e15 || delta_i(2) == -1e15)
+					    continue;
+
+                      heat_transfer_fa7_(fa7)=lambda_f*(-temp_P2(fa7)+4.*temp_P1(fa7)-3.*Twall)/(2.*epsilon)*les_surfaces_fa7(fa7); // schema decentre avant d'ordre 2
+					  //Cerr << "gradient compo " << compo << ": " << Twall << ", " << temp_P1(fa7) << ", " << temp_P2(fa7) << finl;
+                      //heat_transfer_fa7_(fa7) = lambda_f*(temp_P1(fa7) - Twall) * les_surfaces_fa7(fa7) / epsilon; // schema decentre avant d'ordre 2
+                      //used_surface(compo) += les_surfaces_fa7(fa7);
                       total_heat_transfer_(compo)+=heat_transfer_fa7_(fa7);
                     }
                 }
             }
         }
       mp_sum_for_each_item(total_heat_transfer_);
+      //mp_sum_for_each_item(total_surface);
+      //mp_sum_for_each_item(used_surface);
       raise_the_flag_heat_transfer();
+
+
+/*
+    if (Process::je_suis_maitre()) {
+       for (int index = 0; index < nb_compo_tot; index++)
+	     total_heat_transfer_(index) *= total_surface(index) / used_surface(index);
+		}
+		*/
+
     }
 }
 

@@ -91,6 +91,10 @@ public:
   const DoubleTab& get_dWdy_P2() { return dWdy_P2_; }
   const DoubleTab& get_dWdz_P2() { return dWdz_P2_; }
 
+
+  bool has_temperature_equation() const { return ptr_eq_temp_.non_nul(); }
+  const Convection_Diffusion_Temperature_FT_Disc& get_temperature_equation() const { return ptr_eq_temp_.valeur(); }
+
   int get_is_compute_forces() const { return is_compute_forces_; }
   int get_is_compute_forces_Stokes_th() const { return is_compute_stokes_theoretical_forces_; }
   int get_is_compute_heat_transfer() const { return is_compute_heat_transfer_; }

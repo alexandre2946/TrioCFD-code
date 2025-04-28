@@ -44,8 +44,6 @@
 #include <TRUST_Ref.h>
 #include <Parametre_implicite.h>
 
-static const double TSAT_CONSTANTE = 0.;
-
 Implemente_instanciable_sans_constructeur(Convection_Diffusion_Temperature_FT_Disc,"Convection_Diffusion_Temperature_FT_Disc",Convection_Diffusion_Temperature);
 
 Convection_Diffusion_Temperature_FT_Disc::Convection_Diffusion_Temperature_FT_Disc()
@@ -118,6 +116,12 @@ void Convection_Diffusion_Temperature_FT_Disc::set_param(Param& param)
   param.ajouter_flag("divergence_free_velocity_extension", &divergence_free_velocity_extension_, Param::OPTIONAL);
   param.ajouter_non_std("solveur_pression_fictive",(this),Param::OPTIONAL);
   param.ajouter("bc_opening_pressure",&name_bc_opening_pressure_,Param::OPTIONAL);
+  param.ajouter("saturation_temperature",&initial_saturation_temperature,Param::OPTIONAL);
+
+  // method to use to update connected component temperature
+  param.ajouter("connected_component_temperature", (int*)&connected_component_temperature_method);
+  param.dictionnaire("isotherm", (int)ConnectedComponentTemperatureMethod::Isotherm);
+  param.dictionnaire("anisotherm", (int)ConnectedComponentTemperatureMethod::Anisotherm);
 }
 
 int Convection_Diffusion_Temperature_FT_Disc::lire_motcle_non_standard(const Motcle& mot, Entree& is)
@@ -482,7 +486,7 @@ void Convection_Diffusion_Temperature_FT_Disc::calculer_grad_t()
   //GB : Augmenter la constante de l'epaisseur
   //GB : const int stencil_width = 8;
   const int stencil_width = stencil_width_;
-  const double interfacial_value = TSAT_CONSTANTE;
+  const double interfacial_value = saturation_temperature();
 
   const Domaine_VF& domaine_vf = ref_cast(Domaine_VF, domaine_dis());
 
@@ -1325,6 +1329,73 @@ void Convection_Diffusion_Temperature_FT_Disc::mettre_a_jour (double temps)
         }
     }
   // GB : Fin.
+
+  // if connected component are isotherm, return
+  if (connected_component_temperature_method == ConnectedComponentTemperatureMethod::Isotherm)
+    return;
+
+  // update the connected component temperature
+
+  // compute the heat transfer
+  Transport_Interfaces_FT_Disc& eq_interface = ref_eq_interface_.valeur();
+  Post_Processing_Hydrodynamic_Forces& pphf = eq_interface.get_post_process_hydro_forces();
+  pphf.compute_heat_transfer();
+  const DoubleVect& heat_transfer = pphf.get_heat_transfer();
+
+  if (heat_transfer.size() != saturation_temperature_.size())
+    {
+		Cerr << "Error the saturation temperature tabular does not match the heat transfer tabular. Thus "
+		     << "the saturation temperature of connected component cannot be updated." << finl;
+		Process::exit();
+	}
+
+  // compute the time step
+
+
+  //const Transport_Interfaces_FT_Disc& eq_interface_const = ref_eq_interface_.valeur();
+  /*
+  const Maillage_FT_Disc& mesh = eq_interface_const.maillage_interface();
+  //const double& dt = schema_temps().pas_de_temps();
+  const double time_step = temps - mesh.temps();
+  */
+  const double time_step = probleme().calculer_pas_de_temps();
+
+  // get the volume, density and heat capacity of the connected component phase
+  if (!ref_eq_ns_.non_nul())
+    {
+	  Cerr << "Missing Navier-Stokes equation reference in 'void Convection_Diffusion_Temperature_FT_Disc::mettre_a_jour'." << finl;
+	  Process::exit();
+	}
+
+  //const Navier_Stokes_FT_Disc& eq_ns = ref_eq_ns_.valeur();
+
+  Navier_Stokes_FT_Disc& equation_navier_stokes = ref_cast(Navier_Stokes_FT_Disc, ref_eq_ns_.valeur());
+  const Fluide_Diphasique& two_phase_fluid = equation_navier_stokes.fluide_diphasique();
+  const Solid_Particle_base& solid_particle=ref_cast(Solid_Particle_base,
+                                                     two_phase_fluid.fluide_phase(0));
+  const double particle_radius = solid_particle.get_equivalent_radius();
+  const int id_fluid_phase=two_phase_fluid.get_id_fluid_phase();
+
+  const double particle_density       = two_phase_fluid.fluide_phase(1-id_fluid_phase).masse_volumique().valeurs()(0, 0);
+  const double particle_heat_capacity = two_phase_fluid.fluide_phase(1 - id_fluid_phase).capacite_calorifique().valeurs()(0, 0);
+  const double particle_volume        = (4. / 3) * M_PI * particle_radius * particle_radius * particle_radius;
+  const double particle_mass          = particle_volume * particle_density;
+
+  // update the temperature
+  for (int index = 0; index < heat_transfer.size();  index++)
+    {
+	  const double temperature_increment = heat_transfer[index] * time_step * particle_mass * particle_heat_capacity;
+	  Cerr << "increment compo " << index << " temperature: " << saturation_temperature_[index] << " -> " << saturation_temperature_[index] + temperature_increment << finl;
+	  Cerr << "ΔT " << temperature_increment << finl;
+	  Cerr << "H  " << heat_transfer[index] << finl;
+	  Cerr << "cp " << particle_heat_capacity << finl;
+	  Cerr << "ρ  " << particle_density << finl;
+	  Cerr << "R  " << particle_radius << finl;
+	  Cerr << "V  " << particle_volume << finl;
+	  Cerr << "m  " << particle_mass << finl;
+	  Cerr << "Δt " << time_step << finl;
+	  saturation_temperature_[index] += temperature_increment;
+	}
 }
 
 void Convection_Diffusion_Temperature_FT_Disc::discretiser()
@@ -1540,7 +1611,7 @@ void Convection_Diffusion_Temperature_FT_Disc::suppression_interfaces(const IntV
         {
           const int c = num_compo[i];
           if (c >= 0 && flags_compo_a_supprimer[c])
-            temp[i] = TSAT_CONSTANTE;
+            temp[i] = saturation_temperature(c);
         }
       temp.echange_espace_virtuel();
     }
@@ -1551,6 +1622,24 @@ int Convection_Diffusion_Temperature_FT_Disc::preparer_calcul()
   set_is_solid_particle(ref_eq_interface_.valeur().get_is_solid_particle());
   if (is_solid_particle_)
     ref_eq_interface_.valeur().associate_temp_equation_post_processing(*this);
+
+  // resize the saturation_temperature tabular
+  Cerr << "PREPARER_CALCUL_CONVECTION_DIFFUSION_TEMPERATURE_FT" << finl;
+
+  Transport_Interfaces_FT_Disc& eq_interface = ref_eq_interface_.valeur();
+  const int nb_particles_tot = eq_interface.get_nb_particles_tot();
+
+  if (nb_particles_tot == 0)
+  	saturation_temperature_.resize(1);
+  else
+  	saturation_temperature_.resize(nb_particles_tot);
+
+  // initialize temperature
+  saturation_temperature_ = initial_saturation_temperature;
+
+
+
+
   return Equation_base::preparer_calcul();
 }
 
@@ -1596,7 +1685,7 @@ double Convection_Diffusion_Temperature_FT_Disc::get_flux_to_face(const int num_
       const double T_imp = la_cl_typee.T_ext(num_face-ndeb);
       //  Cerr <<  "   Reading coefficients h= " << h << " and T_imp= " << T_imp << " for heat flux evaluation." << finl;
       // The flux is between the wall and Tsat :
-      interfacial_flux = h*(T_imp - TSAT_CONSTANTE); // What about the area? surf should be the interfacial area or come from the face area?
+      interfacial_flux = h*(T_imp - saturation_temperature()); // What about the area? surf should be the interfacial area or come from the face area?
       //                                                it is taken into account after this function.
       return interfacial_flux;
     }
@@ -1708,9 +1797,9 @@ void Convection_Diffusion_Temperature_FT_Disc::get_flux_and_Twall(const int num_
           const double h = la_cl_typee.h_imp(num_face-ndeb);
           const double T_imp = la_cl_typee.Ti_wall(num_face-ndeb);
           // Cerr <<  "   Reading coefficients h= " << h << " and T_imp= " << T_imp << " for heat flux evaluation." << finl;
-          // We keep the term + h*(T_imp - TSAT_CONSTANTE) as h = 0.;
+          // We keep the term + h*(T_imp - saturation_temperature) as h = 0.;
           //
-          flux = la_cl_typee.flux_exterieur_impose(num_face-ndeb) + h*(T_imp - TSAT_CONSTANTE);
+          flux = la_cl_typee.flux_exterieur_impose(num_face-ndeb) + h*(T_imp - saturation_temperature());
           Twall = T_imp;
         }
       else
@@ -1727,7 +1816,7 @@ void Convection_Diffusion_Temperature_FT_Disc::get_flux_and_Twall(const int num_
 
           // Cerr <<  "   Reading coefficients h= " << h << " and T_imp= " << T_imp << " for heat flux evaluation." << finl;
           // The flux is between the wall and Tsat :
-          flux = h*(T_imp - TSAT_CONSTANTE); // What about the area? surf should be the interfacial area or come from the face area?
+          flux = h*(T_imp - saturation_temperature()); // What about the area? surf should be the interfacial area or come from the face area?
           //                                                it is taken into account after this function.
           Twall = T_imp;
 
@@ -1783,7 +1872,17 @@ double Convection_Diffusion_Temperature_FT_Disc::get_Twall(const int num_face) c
   return Twall;
 }
 
-const double& Convection_Diffusion_Temperature_FT_Disc::get_tsat_constant() const
+double Convection_Diffusion_Temperature_FT_Disc::saturation_temperature(int connected_component_number) const
 {
-  return TSAT_CONSTANTE;
+  if      (connected_component_temperature_method == ConnectedComponentTemperatureMethod::Isotherm)
+    return saturation_temperature_[0];
+  else if (connected_component_number < saturation_temperature_.dimension(0))
+    return saturation_temperature_[connected_component_number];
+
+  // if failed to get return a temperature
+  Cerr << "Failed to access temperature of connected component " << connected_component_number
+       << " in saturation_temperature tabular of size " << saturation_temperature_.dimension(0)
+	   << "." << finl;
+  Process::exit();
+  return 0;
 }

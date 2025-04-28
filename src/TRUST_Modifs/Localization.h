@@ -16,16 +16,23 @@
 #ifndef Localization_included
 #define Localization_included
 
-enum Localization {
+#include <string>
+#include <ostream>
+
+//using Localization = CGNS_ENUMT( GridLocation_t );
+enum class Localization {
 	Element,
 	Vertex,
 	Face,
 	FaceI,
 	FaceJ,
 	FaceK,
-	Center,
+	ConnectedComponent,
 	Unknown,
 	Count // the value of this variant it the number of variant in the enum
 };
+
+std::string to_string(const Localization& localization);
+std::ostream& operator<<(std::ostream& os, const Localization& localization);
 
 #endif

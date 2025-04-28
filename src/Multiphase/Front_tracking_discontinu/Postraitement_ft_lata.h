@@ -47,13 +47,15 @@ class Postraitement_ft_lata : public Postraitement {
 		int write_extra_mesh() override;
 		void postprocess_field_values() override;
 	
-	protected:
+	private:
 	
 		void lire_champ_interface(Entree&);
 	
 		int ecrire_maillage_ft_disc();
 		int filter_out_virtual_fa7(IntTab& new_fa7);
 		void filter_out_array(const DoubleTab& dtab, DoubleTab& new_dtab) const;
+
+		void write_field(const Nom& domain_name, const Nom& field_name, const Localization& localization, const DoubleTab& values);
 	
 		////////////////
 		// attributes //
@@ -69,8 +71,8 @@ class Postraitement_ft_lata : public Postraitement {
 	 
 	private:
 	
-		// fields to postprocess (map with name of fields as key, and localization has value)
-		std::map<std::string, Localization> fields_to_postporecess;
+		// fields to postprocess (map with name of fields as key, and a set of localization as value)
+		std::map<std::string, std::set<Localization>> fields_to_postprocess;
 };
 
 #endif

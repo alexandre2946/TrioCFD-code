@@ -47,6 +47,8 @@
 #include <Post_Processing_Hydrodynamic_Forces_Stokes.h>
 
 #include <map>
+#include <variant>
+#include <typeindex>
 
 class Probleme_base;
 class Milieu_base;
@@ -146,8 +148,12 @@ public:
   virtual void remailler_interface();
 
   //methodes utilisees pour le post-traitement
-  virtual int get_field(const Motcle& field, Localization localization, DoubleTab *dtab = nullptr) const;
-  virtual int get_field(const Motcle& field, Localization localization, IntTab* itab = nullptr) const;
+  template <class Type>
+  bool is_field_available(const Motcle& field_name, const Localization& localization) const;
+
+  template <class Type>
+  void get_field(const Motcle& field_name, const Localization& localization, TRUSTTab<Type, int>& tabular) const;
+
   virtual const Maillage_FT_Disc& maillage_interface_pour_post() const;
   virtual const int& get_n_iterations_distance() const;
   int get_mesh_tag() const override
@@ -317,7 +323,17 @@ public:
   { post_process_hydro_forces_.associate_temp_equation(ref_eq_temp); }
   const bool& get_is_solid_particle() const { return is_solid_particle_; }
 
+  /*
+  void get_connected_component_positions(
+                         const Maillage_FT_Disc& mesh,
+                         DoubleTab& positions) const;
+  void get_connected_component_positions_and_surfaces(
+                         const Maillage_FT_Disc& mesh,
+                         DoubleTab& positions,
+                         ArrOfDouble surfaces) const;
+  */
 protected:
+
 
   virtual void calculer_vmoy_composantes_connexes(const Maillage_FT_Disc& maillage,
                                                   const ArrOfInt& compo_connexes_facettes,
@@ -372,16 +388,16 @@ protected:
   void compute_particles_rms();
 
   void add_fields_to_post_FT(Motcles& fields) const;
-  void fill_ftab_vertices_curvature(DoubleTab *ftab,const DoubleTab& dummytab) const;
-  void fill_ftab_velocity(DoubleTab *ftab,const DoubleTab& dummytab) const;
-  void fill_ftab_local_reference_frame_velocity(DoubleTab *ftab,const DoubleTab& dummytab) const;
-  void fill_ftab_normal_unit(DoubleTab *ftab,const DoubleTab& dummytab) const;
-  void fill_ftab_pressure(DoubleTab *ftab,const DoubleTab& dummytab) const;
-  void fill_ftab_pressure_force(DoubleTab *ftab,const DoubleTab& dummytab) const;
-  void fill_ftab_friction_force(DoubleTab *ftab,const DoubleTab& dummytab) const;
-  void fill_ftab_Stokes_pressure_interp(DoubleTab* ftab, const DoubleTab& values) const;
-  void fill_ftab_Stokes_pressure_th(DoubleTab* ftab, const DoubleTab& values) const;
-  void fill_ftab_Stokes(DoubleTab* ftab, const DoubleTab& values) const;
+  void fill_ftab_vertices_curvature(DoubleTab& ftab) const;
+  void fill_ftab_velocity(DoubleTab& ftab) const;
+  void fill_ftab_local_reference_frame_velocity(DoubleTab& ftab) const;
+  void fill_ftab_normal_unit(DoubleTab& ftab) const;
+  void fill_ftab_pressure(DoubleTab& ftab) const;
+  void fill_ftab_pressure_force(DoubleTab& ftab) const;
+  void fill_ftab_friction_force(DoubleTab& ftab) const;
+  void fill_ftab_Stokes_pressure_interp(DoubleTab& ftab) const;
+  void fill_ftab_Stokes_pressure_th(DoubleTab& ftab) const;
+  void fill_ftab_Stokes(DoubleTab& ftab, const DoubleTab& values) const;
 
   OBS_PTR(Probleme_base) probleme_base_;
   OBS_PTR(Navier_Stokes_FT_Disc) equation_ns_;
@@ -439,32 +455,50 @@ private:
 
   void compute_nb_particles_tot();
   // for map_element_post_FT ...
-  void fill_ftab_scalar(DoubleTab *ftab, const ArrOfDouble& values) const;
-  void fill_ftab_scalar(DoubleTab *ftab, const DoubleVect& values) const;
-  void fill_ftab_scalar(DoubleTab *ftab, const DoubleTab& values) const;
-  void fill_ftab_vector(DoubleTab *ftab, const DoubleTab& values) const;
+  void fill_ftab_scalar(DoubleTab& ftab, const ArrOfDouble& values) const;
+  void fill_ftab_scalar(DoubleTab& ftab, const DoubleVect& values) const;
+  void fill_ftab_scalar(DoubleTab& ftab, const DoubleTab& values) const;
+  void fill_ftab_vector(DoubleTab& ftab, const DoubleTab& values) const;
 
   int nb_particles_tot_=0;
 
-  struct map_element_post_FT
-  {
-    using func_type=  void (Transport_Interfaces_FT_Disc::*)(DoubleTab*,const DoubleTab&) const;
-    map_element_post_FT() {};
-    map_element_post_FT(const Motcle& location, func_type function, DoubleTab* ptr, const DoubleTab&  values):
-      location_(location),
-      function_(function),
-      ptr_(ptr),
-      values_(values)
-    {};
-    Motcle location_;
-    func_type function_;
-    DoubleTab* ptr_;
-    DoubleTab  values_;
+
+protected:
+  // store all the available field that can be postprocess in a PostprocessMap
+  struct PostprocessMapKey {
+    // we use std::string and not Motcle in the key because for some reason Motcle does not work well in std::pair for std::map key
+    std::string field_name;
+
+    Localization localization;
+    std::type_index type;
+
+    // Constructor for convenience
+    PostprocessMapKey(const std::string& field_name_, const Localization& localization_, const std::type_info& type_)
+        : field_name(field_name_), localization(localization_), type(type_) {}
+
+    // Comparison operator for using Key in std::map
+    bool operator<(const PostprocessMapKey& other) const {
+        // First compare by field_name
+        if (field_name != other.field_name) {
+            return field_name < other.field_name;
+        }
+
+        // Then compare by localization (based on its own operator<)
+        if (localization != other.localization) {
+            return localization < other.localization;
+        }
+
+        // Finally compare by type_info (std::type_index is comparable)
+        return type < other.type;
+    }
   };
+  using PostprocessMapElement = std::variant<std::function<void(IntTab&)>, std::function<void(DoubleTab&)>>;
+  using PostprocessMap = std::map<PostprocessMapKey, PostprocessMapElement>;
 
-  using my_map=std::map<Motcle, map_element_post_FT>;
+  PostprocessMap postprocess_map;
 
-  void fill_map_post_FT(my_map& map_post, DoubleTab *ftab) const;
+  virtual void init_postprocess_map();
+  std::string get_postprocess_available_fields_string() const;
 
 };
 

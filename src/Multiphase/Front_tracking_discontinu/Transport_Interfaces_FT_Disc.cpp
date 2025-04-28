@@ -59,6 +59,7 @@
 #include <Echange_contact_VDF_FT_Disc.h>
 #include <TRUST_2_PDI.h>
 #include <Avanc.h>
+#include <Localization.h>
 
 #include <map>
 #include <variant>
@@ -331,7 +332,7 @@ int Transport_Interfaces_FT_Disc_interne::sauvegarder(Sortie& os) const
       if(Process::je_suis_maitre())
         {
           Nom mon_ident(maillage_interface.que_suis_je());
-          mon_ident += Nom(time_,"%e");
+          mon_ident += Nom(time_, "%e");
           xyz_os << mon_ident << finl;
           xyz_os << maillage_interface.que_suis_je() << finl;
         }
@@ -340,7 +341,7 @@ int Transport_Interfaces_FT_Disc_interne::sauvegarder(Sortie& os) const
       if(Process::je_suis_maitre())
         {
           Nom mon_ident(remaillage_interface_.que_suis_je());
-          mon_ident += Nom(time_,"%e");
+          mon_ident += Nom(time_, "%e");
           xyz_os << mon_ident << finl;
           xyz_os << remaillage_interface_.que_suis_je() << finl;
         }
@@ -437,6 +438,9 @@ Transport_Interfaces_FT_Disc::Transport_Interfaces_FT_Disc()
   interpolation_repere_local_ = 0;
   force_.resize(dimension);
   moment_.resize((dimension==2?1:dimension));
+
+  // initialize the postprocess_map that store available field to postprocess
+  init_postprocess_map();
 }
 
 /*! @brief le destructeur qui va avec
@@ -8250,213 +8254,247 @@ const Algorithmes_Transport_FT_Disc& Transport_Interfaces_FT_Disc::algorithmes_t
   return variables_internes_->algorithmes_transport_.valeur();
 }
 
+void Transport_Interfaces_FT_Disc::init_postprocess_map()
+  {
+    auto& map = postprocess_map;
+	using Key = PostprocessMapKey;
 
-void Transport_Interfaces_FT_Disc::fill_map_post_FT(Transport_Interfaces_FT_Disc::
-                                                    my_map& map_post, DoubleTab *ftab) const
-{
-  const Motcle som = "sommets";
-  const Motcle elem = "elements";
-  const Motcle bi = "elements et sommets";
-  const DoubleTab dummytab;
+	// integer tabulars
+	// PE owner
+	map[Key("PE",                             Localization::Vertex, typeid(int))] =  [this](IntTab& itab) {
+	    const ArrOfInt& pe_som = this->maillage_interface_pour_post().sommet_PE_owner();
+		itab.resize(this->maillage_interface_pour_post().nb_sommets());
+		for (int index = 0; index < this->maillage_interface_pour_post().nb_sommets(); index++) itab(index) = pe_som[index];
+	};
 
-  map_post.emplace(Postraitement_base::demande_description, map_element_post_FT(bi,&Transport_Interfaces_FT_Disc::
-                                                                                fill_ftab_vertices_curvature, ftab, dummytab));
-  map_post.emplace("courbure", map_element_post_FT(som,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_vertices_curvature, ftab, dummytab));
-  map_post.emplace("vitesse", map_element_post_FT (som,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_velocity, ftab, dummytab));
-  map_post.emplace("vitesse_repere_local", map_element_post_FT (som,&Transport_Interfaces_FT_Disc::
-                                                                fill_ftab_local_reference_frame_velocity, ftab, dummytab));
-  map_post.emplace("normale_unitaire", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                            fill_ftab_normal_unit, ftab, dummytab));
-  map_post.emplace("pressure", map_element_post_FT(elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_pressure, ftab, dummytab));
-  map_post.emplace("pressure_force", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                          fill_ftab_pressure_force, ftab, dummytab));
-  map_post.emplace("friction_force", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                          fill_ftab_friction_force, ftab, dummytab));
+	map[Key("PE",                             Localization::Element, typeid(int))] = [this](IntTab& itab) {
+	    ArrOfInt pe_fac; this->maillage_interface_pour_post().facette_PE_owner(pe_fac);
+		itab.resize(this->maillage_interface_pour_post().nb_facettes());
+		for (int index = 0; index < this->maillage_interface_pour_post().nb_facettes(); index++) itab(index) = pe_fac[index];
+	};
 
-  map_post.emplace("sigma_xx", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_xx_fa7()));
-  map_post.emplace("sigma_xy", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_xy_fa7()));
-  map_post.emplace("sigma_xz", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_xz_fa7()));
-  map_post.emplace("sigma_yx", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_yx_fa7()));
-  map_post.emplace("sigma_yy", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_yy_fa7()));
-  map_post.emplace("sigma_yz", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_yz_fa7()));
-  map_post.emplace("sigma_zx", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_zx_fa7()));
-  map_post.emplace("sigma_zy", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_zy_fa7()));
-  map_post.emplace("sigma_zz", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_.get_sigma_zz_fa7()));
-  map_post.emplace("pressure_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_Stokes_pressure_interp, ftab, dummytab));
-  map_post.emplace("pressure_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                              fill_ftab_Stokes_pressure_th, ftab, dummytab));
-  map_post.emplace("pressure_force_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                           fill_ftab_Stokes, ftab, post_process_hydro_forces_Stokes_.get_pressure_force_fa7()));
-  map_post.emplace("pressure_force_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_Stokes, ftab, post_process_hydro_forces_Stokes_.get_pressure_force_Stokes_th_fa7()));
-  map_post.emplace("friction_force_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                           fill_ftab_Stokes, ftab, post_process_hydro_forces_Stokes_.get_friction_force_fa7()));
-  map_post.emplace("friction_force_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_Stokes, ftab, post_process_hydro_forces_Stokes_.get_friction_force_Stokes_th_fa7()));
+	map[Key("NUMERO",                         Localization::Vertex, typeid(int))] = [this](IntTab& itab) {
+		itab.resize(this->maillage_interface_pour_post().nb_sommets());
+	    for (int index = 0; index < this->maillage_interface_pour_post().nb_sommets(); index++) itab(index) = index;
+	};
 
-  map_post.emplace("sigma_xx_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_xx_fa7()));
-  map_post.emplace("sigma_xy_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_xy_fa7()));
-  map_post.emplace("sigma_xz_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_xz_fa7()));
-  map_post.emplace("sigma_yx_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_yx_fa7()));
-  map_post.emplace("sigma_yy_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_yy_fa7()));
-  map_post.emplace("sigma_yz_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_yz_fa7()));
-  map_post.emplace("sigma_zx_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_zx_fa7()));
-  map_post.emplace("sigma_zy_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_zy_fa7()));
-  map_post.emplace("sigma_zz_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                     fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_zz_fa7()));
+	map[Key("NUMERO",                         Localization::Element, typeid(int))] = [this](IntTab& itab) {
+		itab.resize(this->maillage_interface_pour_post().nb_facettes());
+	    for (int index = 0; index < this->maillage_interface_pour_post().nb_facettes(); index++) itab(index) = index;
+	};
 
-  map_post.emplace("sigma_xx_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                              fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_xx_fa7_Stokes_th()));
-  map_post.emplace("sigma_xy_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                              fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_xy_fa7_Stokes_th()));
-  map_post.emplace("sigma_xz_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                              fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_xz_fa7_Stokes_th()));
-  map_post.emplace("sigma_yy_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                              fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_yy_fa7_Stokes_th()));
-  map_post.emplace("sigma_yz_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                              fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_yz_fa7_Stokes_th()));
-  map_post.emplace("sigma_zz_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                              fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_sigma_zz_fa7_Stokes_th()));
+	map[Key("PE_LOCAL",                       Localization::Vertex, typeid(int))] = [this](IntTab& itab) {
+		itab.resize(this->maillage_interface_pour_post().nb_sommets());
+        itab = Process::me();
+	};
 
-  map_post.emplace("dUdx_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dUdx_P1()));
-  map_post.emplace("dUdy_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dUdy_P1()));
-  map_post.emplace("dUdz_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dUdz_P1()));
-  map_post.emplace("dVdx_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dVdx_P1()));
-  map_post.emplace("dVdy_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dVdy_P1()));
-  map_post.emplace("dVdz_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dVdz_P1()));
-  map_post.emplace("dWdx_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dWdx_P1()));
-  map_post.emplace("dWdy_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dWdy_P1()));
-  map_post.emplace("dWdz_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dWdz_P1()));
+	map[Key("PE_LOCAL",                       Localization::Element, typeid(int))] = [this](IntTab& itab) {
+		itab.resize(this->maillage_interface_pour_post().nb_facettes());
+        itab = Process::me();
+	};
 
-  map_post.emplace("dUdx_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dUdx_P2()));
-  map_post.emplace("dUdy_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dUdy_P2()));
-  map_post.emplace("dUdz_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dUdz_P2()));
-  map_post.emplace("dVdx_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dVdx_P2()));
-  map_post.emplace("dVdy_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dVdy_P2()));
-  map_post.emplace("dVdz_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dVdz_P2()));
-  map_post.emplace("dWdx_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dWdx_P2()));
-  map_post.emplace("dWdy_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dWdy_P2()));
-  map_post.emplace("dWdz_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                   fill_ftab_scalar, ftab, post_process_hydro_forces_.get_dWdz_P2()));
+    map[Key("COMPO_CONNEXE",                  Localization::Element, typeid(int))] = [this](IntTab& itab) {
+        const Maillage_FT_Disc& maillage = this->maillage_interface_pour_post();
+		itab.resize(maillage.nb_facettes());
+        maillage.intersections_elem_facettes();
+        ArrOfIntFT compo(maillage.nb_facettes());
+        compo = 0;
+        int n2 = search_connex_components_local_FT(maillage, compo);
+        compute_global_connex_components_FT(maillage, compo, n2);
+        const int nbf = maillage.nb_facettes();
+        for (int ii = 0; ii < nbf; ii++)
+          itab[ii] = compo[ii];
+	};
 
-  map_post.emplace("dUdx_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdx_P1()));
-  map_post.emplace("dUdy_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdy_P1()));
-  map_post.emplace("dUdz_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdz_P1()));
-  map_post.emplace("dVdx_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdx_P1()));
-  map_post.emplace("dVdy_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdy_P1()));
-  map_post.emplace("dVdz_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdz_P1()));
-  map_post.emplace("dWdx_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdx_P1()));
-  map_post.emplace("dWdy_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdy_P1()));
-  map_post.emplace("dWdz_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdz_P1()));
+	map[Key("COURBURE",                        Localization::Vertex,  typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_vertices_curvature(ftab); };
+	map[Key("VITESSE",                         Localization::Vertex,  typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_velocity(ftab); };
+	map[Key("VITESSE_REPERE_LOCAL",            Localization::Vertex,  typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_local_reference_frame_velocity(ftab); };
+	map[Key("NORMALE_UNITAIRE",                Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_normal_unit(ftab); };
+	map[Key("PRESSURE",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_pressure(ftab); };
+	map[Key("PRESSURE_FORCE",                  Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_pressure_force(ftab); };
+	map[Key("FRICTION_FORCE",                  Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_friction_force(ftab); };
 
-  map_post.emplace("dUdx_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdx_P2()));
-  map_post.emplace("dUdy_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdy_P2()));
-  map_post.emplace("dUdz_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdz_P2()));
-  map_post.emplace("dVdx_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdx_P2()));
-  map_post.emplace("dVdy_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdy_P2()));
-  map_post.emplace("dVdz_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdz_P2()));
-  map_post.emplace("dWdx_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdx_P2()));
-  map_post.emplace("dWdy_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdy_P2()));
-  map_post.emplace("dWdz_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                    fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdz_P2()));
+	map[Key("SIGMA_XX",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_xx_fa7()); };
+	map[Key("SIGMA_XY",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_xy_fa7()); };
+	map[Key("SIGMA_XZ",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_xz_fa7()); };
+	map[Key("SIGMA_YX",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_yx_fa7()); };
+	map[Key("SIGMA_YY",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_yy_fa7()); };
+	map[Key("SIGMA_YZ",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_yz_fa7()); };
+	map[Key("SIGMA_ZX",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_zx_fa7()); };
+	map[Key("SIGMA_ZY",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_zy_fa7()); };
+	map[Key("SIGMA_ZZ",                        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_sigma_zz_fa7()); };
 
-  map_post.emplace("dUdx_P1_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdx_P1_Stokes_th()));
-  map_post.emplace("dUdz_P1_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdz_P1_Stokes_th()));
-  map_post.emplace("dVdz_P1_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdz_P1_Stokes_th()));
-  map_post.emplace("dWdx_P1_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdx_P1_Stokes_th()));
-  map_post.emplace("dWdy_P1_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdy_P1_Stokes_th()));
-  map_post.emplace("dWdz_P1_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdz_P1_Stokes_th()));
+	map[Key("PRESSURE_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_Stokes_pressure_interp(ftab); };
+	map[Key("PRESSURE_STOKES_TH",              Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_Stokes_pressure_th(ftab); };
 
-  map_post.emplace("dUdx_P2_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdx_P2_Stokes_th()));
-  map_post.emplace("dUdz_P2_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dUdz_P2_Stokes_th()));
-  map_post.emplace("dVdz_P2_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dVdz_P2_Stokes_th()));
-  map_post.emplace("dWdx_P2_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdx_P2_Stokes_th()));
-  map_post.emplace("dWdy_P2_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdy_P2_Stokes_th()));
-  map_post.emplace("dWdz_P2_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                             fill_ftab_scalar, ftab, post_process_hydro_forces_Stokes_.get_dWdz_P2_Stokes_th()));
+	map[Key("PRESSURE_FORCE_STOKES_TH_INTERP", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_Stokes(ftab, this->post_process_hydro_forces_Stokes_.get_pressure_force_fa7()); };
+	map[Key("PRESSURE_FORCE_STOKES_TH",        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_Stokes(ftab, this->post_process_hydro_forces_Stokes_.get_pressure_force_Stokes_th_fa7()); };
 
-  map_post.emplace("U_P1", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                fill_ftab_vector, ftab, post_process_hydro_forces_.get_U_P1()));
-  map_post.emplace("U_P2", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                fill_ftab_vector, ftab, post_process_hydro_forces_.get_U_P2()));
-  map_post.emplace("U_P1_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                 fill_ftab_vector, ftab, post_process_hydro_forces_Stokes_.get_U_P1()));
-  map_post.emplace("U_P2_Stokes_th_interp", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                                 fill_ftab_vector, ftab, post_process_hydro_forces_Stokes_.get_U_P2()));
-  map_post.emplace("U_P1_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                          fill_ftab_vector, ftab, post_process_hydro_forces_Stokes_.get_U_P1_Stokes_th()));
-  map_post.emplace("U_P2_Stokes_th", map_element_post_FT (elem,&Transport_Interfaces_FT_Disc::
-                                                          fill_ftab_vector, ftab, post_process_hydro_forces_Stokes_.get_U_P2_Stokes_th()));
-  map_post.emplace("heat_transfer", map_element_post_FT(elem,	&Transport_Interfaces_FT_Disc::fill_ftab_scalar,
-                                                        ftab,post_process_hydro_forces_.get_heat_transfer_fa7()));
+	map[Key("FRICTION_FORCE_STOKES_TH_INTERP", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_Stokes(ftab, this->post_process_hydro_forces_Stokes_.get_friction_force_fa7()); };
+	map[Key("FRICTION_FORCE_STOKES_TH",        Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_Stokes(ftab, this->post_process_hydro_forces_Stokes_.get_friction_force_Stokes_th_fa7()); };
 
+	map[Key("SIGMA_XX_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_xx_fa7()); };
+	map[Key("SIGMA_XY_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_xy_fa7()); };
+	map[Key("SIGMA_XZ_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_xz_fa7()); };
+	map[Key("SIGMA_YX_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_yx_fa7()); };
+	map[Key("SIGMA_YY_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_yy_fa7()); };
+	map[Key("SIGMA_YZ_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_yz_fa7()); };
+	map[Key("SIGMA_ZX_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_zx_fa7()); };
+	map[Key("SIGMA_ZY_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_zy_fa7()); };
+	map[Key("SIGMA_ZZ_STOKES_TH_INTERP",       Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_zz_fa7()); };
+
+
+	map[Key("SIGMA_XX_STOKES_TH",              Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_xx_fa7_Stokes_th()); };
+	map[Key("SIGMA_XY_STOKES_TH",              Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_xy_fa7_Stokes_th()); };
+	map[Key("SIGMA_XZ_STOKES_TH",              Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_xz_fa7_Stokes_th()); };
+	map[Key("SIGMA_YY_STOKES_TH",              Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_yy_fa7_Stokes_th()); };
+	map[Key("SIGMA_YZ_STOKES_TH",              Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_yz_fa7_Stokes_th()); };
+	map[Key("SIGMA_ZZ_STOKES_TH",              Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_sigma_zz_fa7_Stokes_th()); };
+
+
+	map[Key("DUDX_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdx_P1()); };
+	map[Key("DUDY_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdy_P1()); };
+	map[Key("DUDZ_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdz_P1()); };
+	map[Key("DVDX_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdx_P1()); };
+	map[Key("DVDY_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdy_P1()); };
+	map[Key("DVDZ_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdz_P1()); };
+	map[Key("DWDX_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdx_P1()); };
+	map[Key("DWDY_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdy_P1()); };
+	map[Key("DWDZ_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdz_P1()); };
+
+	map[Key("DUDX_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdx_P2()); };
+	map[Key("DUDY_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdy_P2()); };
+	map[Key("DUDZ_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdz_P2()); };
+	map[Key("DVDX_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdx_P2()); };
+	map[Key("DVDY_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdy_P2()); };
+	map[Key("DVDZ_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdz_P2()); };
+	map[Key("DWDX_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdx_P2()); };
+	map[Key("DWDY_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdy_P2()); };
+	map[Key("DWDZ_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdz_P2()); };
+
+	map[Key("DUDX_P1_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdx_P1_Stokes_th()); };
+	map[Key("DUDZ_P1_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdz_P1_Stokes_th()); };
+	map[Key("DVDZ_P1_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdz_P1_Stokes_th()); };
+	map[Key("DWDX_P1_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdx_P1_Stokes_th()); };
+	map[Key("DWDY_P1_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdy_P1_Stokes_th()); };
+	map[Key("DWDZ_P1_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdz_P1_Stokes_th()); };
+
+	map[Key("DUDX_P2_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdx_P2_Stokes_th()); };
+	map[Key("DUDZ_P2_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dUdz_P2_Stokes_th()); };
+	map[Key("DVDZ_P2_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dVdz_P2_Stokes_th()); };
+	map[Key("DWDX_P2_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdx_P2_Stokes_th()); };
+	map[Key("DWDY_P2_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdy_P2_Stokes_th()); };
+	map[Key("DWDZ_P2_STOKES_TH",               Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_Stokes_.get_dWdz_P2_Stokes_th()); };
+
+	map[Key("U_P1", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_vector(ftab, this->post_process_hydro_forces_Stokes_.get_U_P1()); };
+	map[Key("U_P2", Localization::Element, typeid(double))] = [this](DoubleTab& ftab) { this->fill_ftab_vector(ftab, this->post_process_hydro_forces_Stokes_.get_U_P2()); };
+
+	map[Key("U_P1_STOKES_TH",                  Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_vector(ftab, this->post_process_hydro_forces_Stokes_.get_U_P1_Stokes_th()); };
+	map[Key("U_P2_STOKES_TH",                  Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_vector(ftab, this->post_process_hydro_forces_Stokes_.get_U_P2_Stokes_th()); };
+
+	map[Key("HEAT_TRANSFER",                   Localization::Element, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_heat_transfer_fa7()); };
+
+	map[Key("VITESSE",              Localization::ConnectedComponent, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                                              this->fill_ftab_vector(ftab, this->particles_velocity_collision_); };
+
+	map[Key("TEMPERATURE",          Localization::ConnectedComponent, typeid(double))] = [this](DoubleTab& ftab) {
+	                                                     if (this->post_process_hydro_forces_.has_temperature_equation())
+	                                                       this->fill_ftab_scalar(ftab, this->post_process_hydro_forces_.get_temperature_equation().get_saturation_temperature());
+														 else
+														   {
+														     Cerr << "Cannot postprocess temperature at connected_component location without a temperature equation associated "
+															      << "with that problem." << finl;
+															 Process::exit();
+														   }};
 }
+
+std::string Transport_Interfaces_FT_Disc::get_postprocess_available_fields_string() const
+  {
+
+	// create the output
+	std::string output;
+    bool first = true;
+	for (const auto& [key, function] : postprocess_map)
+	  {
+	    // separator
+		if (!first)
+			output += ", ";
+	    first = false;
+
+		// representation of type
+		std::string type_string;
+		if      (key.type == typeid(int))
+		  type_string = "Int";
+		else if (key.type == typeid(double))
+          type_string = "Double";
+		else
+          type_string = "<UNKNOWN_TYPE>";
+
+        // field
+	  	output += "("  + key.field_name + ", " + to_string(key.localization) + ", " + type_string + ")";
+	  }
+    
+	return output;
+  }
+
+template <class Type>
+bool Transport_Interfaces_FT_Disc::is_field_available(const Motcle& field_name, const Localization& localization) const
+  {
+
+    // try to get the field
+	// get the name as upper case std::string
+    Nom field_name_alias = field_name;
+    std::string field_name_upper = field_name_alias.majuscule().getString();
+
+    // return true if this field is in the postprocess_map
+    return postprocess_map.find(PostprocessMapKey(field_name_upper, localization, typeid(Type))) != postprocess_map.end();
+  }
+
+template bool Transport_Interfaces_FT_Disc::is_field_available<int>(const Motcle&, const Localization&) const;
+template bool Transport_Interfaces_FT_Disc::is_field_available<double>(const Motcle&, const Localization&) const;
 
 /*! @brief Cherche le champ discret aux interfaces dont le nom est "champ", et verifie qu'il peut etre postraite a la localisation demandee (loc).
  *
@@ -8468,200 +8506,37 @@ void Transport_Interfaces_FT_Disc::fill_map_post_FT(Transport_Interfaces_FT_Disc
  *    qu'il existe).
  *
  */
-int Transport_Interfaces_FT_Disc::get_field(const Motcle& champ, Localization localization, DoubleTab *ftab) const
+template <class Type>
+void Transport_Interfaces_FT_Disc::get_field(const Motcle& field_name, const Localization& localization, TRUSTTab<Type, int>& values) const
 {
-  int res = 1;
 
-  const Motcle som = "sommets";            // post-processing at the vertices only
-  const Motcle elem = "elements";          // post-processing at the element only
-  const Motcle bi = "elements et sommets"; // post-processing at both location
+  // check localization
+  if (localization != Localization::Element && localization != Localization::Vertex && localization != Localization::ConnectedComponent)
+    Process::exit("Transport_Interface_FT_Disc::get_field: Unavailable localization '" + to_string(localization) + "'. Cannot retrieve field.");
 
-  Transport_Interfaces_FT_Disc::my_map map_post;
-  fill_map_post_FT(map_post,ftab);
+  // check if this field is available for that localization
+  if (!is_field_available<Type>(field_name, localization))
+    Process::exit("Transport_Interface_FT_Disc::get_field: Unavailable field named '" + field_name.getString() + "' with localization '" + to_string(localization) + "'.\nAvailable fields: " + get_postprocess_available_fields_string());
 
-  Motcle the_key="key";
-  Motcle the_loc="loc";
-  map_element_post_FT::func_type the_function=&Transport_Interfaces_FT_Disc::fill_ftab_scalar;
-  DoubleTab  the_tab_values;
-  bool elem_found=false;
+  if(post_process_hydro_forces_.get_is_compute_forces())
+    post_process_hydro_forces_.compute_hydrodynamic_forces();
+  if(post_process_hydro_forces_.get_is_compute_forces_Stokes_th())
+    post_process_hydro_forces_Stokes_.compute_hydrodynamic_forces();
+  if (post_process_hydro_forces_.get_is_compute_heat_transfer())
+    post_process_hydro_forces_.compute_heat_transfer();
 
-  // I didn't manage to use std::map::find properly, so I loop on map_post to find the element
-  for (const auto& [key, value] : map_post)
-    {
-      if (key==champ)
-        {
-          the_key=key;
-          the_loc=value.location_;
-          the_function=value.function_;
-          the_tab_values=value.values_;
-          elem_found=true;
-          break;
-        }
-    }
+  // convert the field_name to a std::string in uppercase
+  Nom field_name_alias = field_name;
+  std::string field_name_upper = field_name_alias.majuscule().getString();
 
-  if (the_key==Postraitement_base::demande_description)
-    {
-      Cerr<<"The real fields to be post-processed are :"<<finl;
-      int i=0;
-      for (const auto& [key, value] : map_post)
-        {
-          Cerr << " Fields("<<i<<") : " << key << ", Location : ";
-
-          Cerr << value.location_ << finl;
-          i++;
-        }
-      res = 0;
-    }
-  else if (!elem_found)     // existing field?
-    res = 0;  // inexisting field
-  else if (! (the_loc==bi
-              || (the_loc==som && loc==Postraitement_base::SOMMETS)
-              || (the_loc==elem && loc==Postraitement_base::ELEMENTS)) )   // authorized location?
-    res = 0; // unauthorized location
-  else
-    {
-      if (ftab)
-        {
-          if(post_process_hydro_forces_.get_is_compute_forces())
-            post_process_hydro_forces_.compute_hydrodynamic_forces();
-          if(post_process_hydro_forces_.get_is_compute_forces_Stokes_th())
-            post_process_hydro_forces_Stokes_.compute_hydrodynamic_forces();
-          if (post_process_hydro_forces_.get_is_compute_heat_transfer())
-            post_process_hydro_forces_.compute_heat_transfer();
-          (this->*the_function)(ftab,the_tab_values);
-        }
-      res = 1;
-    }
-
-  return res;
+  // fill the values tabular
+  std::function<void(TRUSTTab<Type>&)>fill_function = std::get<std::function<void(TRUSTTab<Type, int>&)>>(
+      postprocess_map.at(PostprocessMapKey(field_name_upper, localization, typeid(Type))));
+  (fill_function)(values);
 }
 
-/*! @brief Voir l'autre get_field.
- *
- * Cette fonction est specifique aux champs d'entiers.
- *
- */
-int Transport_Interfaces_FT_Disc::get_field(const Motcle& champ, Localization localization, IntTab *itab) const
-{
-  int res = 1;
-
-  const Motcle som = "sommets";            //postraitement possible uniquement aux sommets
-  const Motcle elem = "elements";          //postraitement possible uniquement aux elements
-  const Motcle bi = "elements et sommets"; //postraitement possible aux sommets et aux elements
-  const int nb_champs = 5;
-  Motcles fields(nb_champs);
-  {
-    fields[0] = Postraitement_base::demande_description;
-    fields[1] = "pe";        // PE owner
-    fields[2] = "numero";    // numero local du sommet/element
-    fields[3] = "pe_local";  // PE local
-    fields[4] = "compo_connexe";
-  }
-  Motcles localisations(nb_champs);
-  {
-    localisations[0] = bi;
-    localisations[1] = bi;
-    localisations[2] = bi;
-    localisations[3] = bi;
-    localisations[4] = elem;
-  }
-
-  int rank=fields.search(champ), i;
-
-  if (rank==0)
-    {
-      Cerr<<"The integer fields to be post-processed are:"<<finl;
-      for (i=1 ; i<nb_champs ; i++)
-        {
-          Cerr << " Fields("<<i<<") : "<< fields[i] << " # Localisations : " << localisations[i] << finl;
-        }
-      res = 0;
-    }
-  else if (rank==-1)
-    {
-      //champ inexistant
-      res = 0;
-    }
-  else if (! (localisations[rank]==bi
-              || (localisations[rank]==som && loc==Postraitement_base::SOMMETS)
-              || (localisations[rank]==elem && loc==Postraitement_base::ELEMENTS)) )   //test localisation autorisee ?
-    {
-      //localisation non autorisee
-      res = 0;
-    }
-  else
-    {
-      if (itab)   // Pointeur non nul : calculer le champ
-        {
-
-          const Maillage_FT_Disc& maillage = maillage_interface_pour_post();
-          const int n =
-            (loc==Postraitement_base::SOMMETS)
-            ? maillage.nb_sommets()
-            : maillage.nb_facettes();
-          int i2;
-          itab->resize(n);
-
-          switch (rank )
-            {
-            case 1:
-              {
-                if (loc==Postraitement_base::SOMMETS)
-                  {
-                    //TMP : tant que IntTabFt et IntTab n'ont pas fusionne :
-                    //*itab = maillage_interface_->sommet_PE_owner();
-                    const ArrOfInt& pe_som = maillage.sommet_PE_owner();
-                    for (i2=0 ; i2<n ; i2++)
-                      {
-                        (*itab)(i2) = pe_som[i2];
-                      }
-                  }
-                else
-                  {
-                    ArrOfIntFT pe_fac;
-                    maillage.facette_PE_owner(pe_fac);
-                    for (i2=0 ; i2<n ; i2++)
-                      {
-                        (*itab)(i2) = pe_fac[i2];
-                      }
-                  }
-                break;
-              }
-            case 2:
-              {
-                for (i2=0 ; i2<n ; i2++)
-                  {
-                    (*itab)(i2) = i2;
-                  }
-                break;
-              }
-            case 3:
-              {
-                (*itab) = Process::me();
-                break;
-              }
-            case 4:
-              {
-                maillage.intersections_elem_facettes();
-                ArrOfIntFT compo(maillage.nb_facettes());
-                compo = 0;
-                int n2 = search_connex_components_local_FT(maillage, compo);
-                compute_global_connex_components_FT(maillage, compo, n2);
-                const int nbf = maillage.nb_facettes();
-                for (int ii = 0; ii < nbf; ii++)
-                  (*itab)[ii] = compo[ii];
-
-                break;
-              }
-            default:
-              Cerr << "Transport_Interfaces_FT_Disc::get_field: unexpected case" << finl;
-              assert(0);
-              Process::exit();
-            }
-        }
-    }
-  return res;
-}
+template void Transport_Interfaces_FT_Disc::get_field<int>(const Motcle&, const Localization&, IntTab&) const;
+template void Transport_Interfaces_FT_Disc::get_field<double>(const Motcle&, const Localization&, DoubleTab&) const;
 
 /*! @brief Renvoie le maillage stocke specialement pour le postraitement (si on veut postraiter un etat intermediaire.
  *
@@ -9326,6 +9201,74 @@ void Transport_Interfaces_FT_Disc::calculer_derivee_volume_phase1(
 
 #endif
 
+/*
+void Transport_Interfaces_FT_Disc::get_connected_component_positions(
+                         const Maillage_FT_Disc& mesh,
+                         DoubleTab& positions) const
+{
+	ArrOfDouble surfaces;
+	get_connected_component_positions_and_surfaces(positions, surfaces);
+}
+
+
+void Transport_Interfaces_FT_Disc::get_connected_component_positions_and_surfaces(
+                         const Maillage_FT_Disc& mesh,
+                         DoubleTab& positions,
+                         ArrOfDouble surfaces) const
+{
+  // resize the tabulars
+  int number_of_connected_components = nb_particles_tot_;
+  positions.resize(number_of_connected_components);
+  surfaces.resize(number_of_connected_components);
+
+  // initialize positions to (0,0,0)
+  positions = 0.;
+
+  // weight each vertex position by its face surface
+  // meaning that we compute the center of gravity of the connected component surface,
+  // and not its weight
+
+  const int number_of_faces = mesh.facettes().dimension_tot(0);
+  for (int face_index = 0; face_index < number_of_faces; face_index++)
+    {
+	  // if the surface is virtual, we skip it
+	  if (mesh.facette_virtuelle(face_index))
+	    continue;
+
+      // get the number and surface area of the connected component for this face
+	  const int connected_component_number = compo_connexes_facettes[face_index];
+	  const double ttface_surface = surface_facette[face_index];
+
+	  // accumulate the surface for the connected component
+	  surfaces[connected_component_number] += face_surface;
+
+	  // then accumulate the position of the face vertices weighted by the face surface
+	  for (int vertex_index = 0; vertex_index < dimension; vertex_index++)
+	    {
+		  
+		  // get the vertex number in the mesh
+		  const int vertex_number = facettes(face_index, vertex_index);
+
+		  // for each axis
+		  for (int axis = 0; axis < dimension; axis++)
+		    positions[connected_component_number, axis] +=
+			    face_surface * sommets(vertex_number, axis);
+		}
+	}
+
+  // sum the result on all processors
+  mp_sum_for_each_item(positions);
+  mp_sum_for_each_item(surfaces);
+
+  // then normalize by the surface the position
+  for (int index = 0; index < number_of_connected_components; index++)
+    {
+	  // for each axis
+      for (int axis = 0; axis < dimension; axis++)
+        positions[index, axis] /= (surfaces[index] * dimension);
+	}
+}
+*/
 
 void Transport_Interfaces_FT_Disc::calculer_vmoy_composantes_connexes(const Maillage_FT_Disc& maillage,
                                                                       const ArrOfInt& compo_connexes_facettes,
@@ -9864,51 +9807,51 @@ void Transport_Interfaces_FT_Disc::compute_particles_rms()
 
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_scalar(DoubleTab *ftab,
+void Transport_Interfaces_FT_Disc::fill_ftab_scalar(DoubleTab& ftab,
                                                     const ArrOfDouble& values) const
 {
   const int nb_fa7 = values.size_array();
-  ftab->resize(nb_fa7, 1);
+  ftab.resize(nb_fa7, 1);
   for (int fa7=0 ; fa7<nb_fa7 ; fa7++)
-    (*ftab)(fa7,0) = (float) values(fa7);
+    ftab(fa7,0) = (float) values(fa7);
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_scalar(DoubleTab *ftab,
+void Transport_Interfaces_FT_Disc::fill_ftab_scalar(DoubleTab& ftab,
                                                     const DoubleVect& values) const
 {
   const int nb_fa7 = values.size_array();
-  ftab->resize(nb_fa7, 1);
+  ftab.resize(nb_fa7, 1);
   for (int fa7=0 ; fa7<nb_fa7 ; fa7++)
-    (*ftab)(fa7,0) = (float) values(fa7);
+    ftab(fa7,0) = (float) values(fa7);
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_scalar(DoubleTab *ftab,
+void Transport_Interfaces_FT_Disc::fill_ftab_scalar(DoubleTab& ftab,
                                                     const DoubleTab& values) const
 {
   const int nb_fa7 = values.dimension(0);
-  ftab->resize(nb_fa7, 1);
+  ftab.resize(nb_fa7, 1);
   for (int fa7=0 ; fa7<nb_fa7 ; fa7++)
-    (*ftab)(fa7,0) = (float) values(fa7);
+    ftab(fa7,0) = (float) values(fa7);
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_vector(DoubleTab *ftab, const DoubleTab& values) const
+void Transport_Interfaces_FT_Disc::fill_ftab_vector(DoubleTab& ftab, const DoubleTab& values) const
 {
 
   const int nb_fa7 = values.dimension(0);
   const int nb_compo = values.dimension(1);
-  ftab->resize(nb_fa7, nb_compo);
+  ftab.resize(nb_fa7, nb_compo);
   for (int fa7=0 ; fa7<nb_fa7 ; fa7++)
     for (int k=0 ; k<nb_compo ; k++)
-      (*ftab)(fa7,k) = (float) values(fa7,k);
+      ftab(fa7,k) = (float) values(fa7,k);
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_vertices_curvature(DoubleTab *ftab, const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_vertices_curvature(DoubleTab& ftab) const
 {
   const Maillage_FT_Disc& mesh = maillage_interface_pour_post();
-  fill_ftab_scalar(ftab,mesh.get_update_courbure_sommets());
+  fill_ftab_scalar(ftab, mesh.get_update_courbure_sommets());
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_velocity(DoubleTab *ftab,const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_velocity(DoubleTab& ftab) const
 {
   if (variables_internes_->refequation_vitesse_transport.non_nul())
     {
@@ -9942,7 +9885,7 @@ void Transport_Interfaces_FT_Disc::fill_ftab_velocity(DoubleTab *ftab,const Doub
 
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_local_reference_frame_velocity(DoubleTab *ftab, const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_local_reference_frame_velocity(DoubleTab& ftab) const
 {
   if (variables_internes_->refequation_vitesse_transport.non_nul())
     {
@@ -9970,44 +9913,44 @@ void Transport_Interfaces_FT_Disc::fill_ftab_local_reference_frame_velocity(Doub
     }
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_normal_unit(DoubleTab *ftab,const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_normal_unit(DoubleTab& ftab) const
 {
   const Maillage_FT_Disc& mesh = maillage_interface_pour_post();
   fill_ftab_vector(ftab,mesh.get_update_normale_facettes());
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_pressure_force(DoubleTab *ftab,const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_pressure_force(DoubleTab& ftab) const
 {
   if (post_process_hydro_forces_.get_is_post_process_pressure_force_fa7())
     fill_ftab_vector(ftab,post_process_hydro_forces_.get_pressure_force_fa7());
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_friction_force(DoubleTab *ftab,const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_friction_force(DoubleTab& ftab) const
 {
   if (post_process_hydro_forces_.get_is_post_process_friction_force_fa7())
     fill_ftab_vector(ftab,post_process_hydro_forces_.get_friction_force_fa7());
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_Stokes(DoubleTab* ftab, const DoubleTab& values) const
+void Transport_Interfaces_FT_Disc::fill_ftab_Stokes(DoubleTab& ftab, const DoubleTab& values) const
 {
   if(post_process_hydro_forces_Stokes_.get_is_compute_forces_Stokes_th())
     fill_ftab_vector(ftab,values);
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_pressure(DoubleTab *ftab,const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_pressure(DoubleTab& ftab) const
 {
   if(post_process_hydro_forces_.get_is_post_process_pressure_fa7())
-    fill_ftab_scalar(ftab,post_process_hydro_forces_.get_pressure_fa7());
+    fill_ftab_scalar(ftab, post_process_hydro_forces_.get_pressure_fa7());
 }
 
-void Transport_Interfaces_FT_Disc::fill_ftab_Stokes_pressure_interp(DoubleTab* ftab, const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_Stokes_pressure_interp(DoubleTab& ftab) const
 {
   if(post_process_hydro_forces_Stokes_.get_is_compute_forces_Stokes_th())
-    fill_ftab_scalar(ftab,post_process_hydro_forces_Stokes_.get_pressure_fa7());
+    fill_ftab_scalar(ftab, post_process_hydro_forces_Stokes_.get_pressure_fa7());
 }
-void Transport_Interfaces_FT_Disc::fill_ftab_Stokes_pressure_th(DoubleTab* ftab, const DoubleTab& dummytab) const
+void Transport_Interfaces_FT_Disc::fill_ftab_Stokes_pressure_th(DoubleTab& ftab) const
 {
   if(post_process_hydro_forces_Stokes_.get_is_compute_forces_Stokes_th())
-    fill_ftab_scalar(ftab,post_process_hydro_forces_Stokes_.get_pressure_fa7_Stokes_th());
+    fill_ftab_scalar(ftab, post_process_hydro_forces_Stokes_.get_pressure_fa7_Stokes_th());
 }
 

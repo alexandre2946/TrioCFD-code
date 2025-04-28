@@ -56,6 +56,8 @@ Transport_Marqueur_FT::Transport_Marqueur_FT()
   phase_marquee_ = -1;
   contrib_one_way = 1;
 
+  // initialize the postprocess_map that store available field to postprocess
+  init_postprocess_map();
 }
 
 
@@ -1365,145 +1367,52 @@ const DoubleTab& Transport_Marqueur_FT::calculer_valeurs_volumes(DoubleTab& val_
 }
 
 // Methode de travail de remplissage d'une FloatTab par un DoubleTabFT
-inline void remplissage(const DoubleTab& tab, DoubleTab *ftab)
+inline void remplissage(const DoubleTab& tab, DoubleTab& ftab)
 {
   const int nb_noeuds = tab.dimension(0);
   const int nb_compo = tab.dimension(1);
-  ftab->resize(nb_noeuds, nb_compo);
+  ftab.resize(nb_noeuds, nb_compo);
   for (int som=0 ; som<nb_noeuds ; som++)
     for (int k=0 ; k<nb_compo ; k++)
-      (*ftab)(som,k) = tab(som,k);
+      ftab(som,k) = tab(som,k);
 }
-/*! @brief Cherche le champ discret aux interfaces dont le nom est "champ", et verifie qu'il peut etre postraite a la localisation demandee (loc).
- *
- *   Si oui on renvoie 1 et, si ftab est non nul, on remplit le champ ftab
- *   avec le champ demande.
- *   Si non, on renvoie 0.
- *   (la fonction est appelee avec ftab=0 lors de la lecture du postraitement,
- *    car on n'a pas besoin de la valeur du champ, on veut seulement verifier
- *    qu'il existe).
- *
- */
-int Transport_Marqueur_FT::get_field(const Motcle& champ, Localization localization, DoubleTab *ftab) const
+
+void Transport_Marqueur_FT::init_postprocess_map()
 {
-  int res = 1;
+    auto& map = postprocess_map;
+	using Key = PostprocessMapKey;
 
-  const Motcle som = "sommets";            //postraitement possible uniquement aux sommets
-  const Motcle elem = "elements";          //postraitement possible uniquement aux elements
-  const Motcle bi = "elements et sommets"; //postraitement possible aux sommets et aux elements
-  int nb_champs = 2;
-  int proprietes_postraitables=1;
-  // Condition pour postraiter les proprietes des particules
-  // en attendant que les marqueurs aient des proprietes simples:
-  // diametre nul
-  // vitesse
-  // etc...
-  if (methode_calcul_vp_ == INTERPOLEE)
-    proprietes_postraitables=0;
+	map[Key("VITESSE", Localization::Vertex, typeid(double))] =  [this](DoubleTab& dtab) {
+       if (methode_calcul_vp_ == INTERPOLEE)
+         {
+           DoubleTabFT vitesse;
+           calcul_vitesse_p(vitesse);
+           remplissage(vitesse, dtab);
+         }
+       else
+         remplissage(proprietes_particules().vitesse_particules(), dtab);
+	};
 
-  if (proprietes_postraitables)
-    nb_champs+=5;
-  Motcles les_champs(nb_champs);
-  {
-    les_champs[0] = Postraitement_base::demande_description;
-    les_champs[1] = "vitesse";
-    if (proprietes_postraitables)
-      {
-        les_champs[2] = "delta_v";
-        les_champs[3] = "temperature";
-        les_champs[4] = "masse_volumique";
-        les_champs[5] = "diametre";
-        les_champs[6] = "volume";
-      }
-  }
-  Motcles localisations(nb_champs);
-  {
-    localisations[0] = bi;
-    // Pour des particules, on n'accepte que le postraitement aux sommets (1 particule=1 sommet!):
-    for (int i=1; i<nb_champs; i++)
-      localisations[i] = som;
-  }
+    if (methode_calcul_vp_ == INTERPOLEE)
+  	  return;
 
-  int rang=les_champs.search(champ);
+	map[Key("DELTA_V", Localization::Vertex, typeid(double))] = [this](DoubleTab& dtab) {
+        remplissage(this->proprietes_particules().delta_v(), dtab);
+	};
+	
+	map[Key("TEMPERATURE", Localization::Vertex, typeid(double))] = [this](DoubleTab& dtab) {
+        remplissage(this->proprietes_particules().temperature_particules(), dtab);
+	};
 
-  if (rang==0)
-    {
-      Cerr<<"The real fields to be post-processed are :"<<finl;
-      for (int i=1 ; i<nb_champs ; i++)
-        {
-          Cerr << " Fields("<<i<<") : "<< les_champs[i] << " # Localisations : " << localisations[i] << finl;
-        }
-      res = 0;
-    }
-  else if (rang==-1)     //test champ existe ?
-    {
-      //champ inexistant
-      res = 0;
-    }
-  else if (! (localisations[rang]==bi
-              || (localisations[rang]==som && loc==Postraitement_base::SOMMETS)
-              || (localisations[rang]==elem && loc==Postraitement_base::ELEMENTS)) )   //test localisation autorisee ?
-    {
-      //localisation non autorisee
-      res = 0;
-    }
-  else
-    {
-      if (ftab) // Si pointeur nul : ne pas calculer la valeur du champ.
-        switch(rang)
-          {
-          case 1:
-            {
-              if (methode_calcul_vp_ == INTERPOLEE)
-                {
-                  DoubleTabFT vitesse;
-                  calcul_vitesse_p(vitesse);
-                  remplissage(vitesse, ftab);
-                }
-              else
-                remplissage(proprietes_particules().vitesse_particules(), ftab);
-              break;
-            }
-          case 2:
-            {
-              remplissage(proprietes_particules().delta_v(), ftab);
-              break;
-            }
-          case 3:
-            {
-              remplissage(proprietes_particules().temperature_particules(), ftab);
-              break;
-            }
-          case 4:
-            {
-              remplissage(proprietes_particules().masse_vol_particules(), ftab);
-              break;
-            }
-          case 5:
-            {
-              remplissage(proprietes_particules().diametre_particules(), ftab);
-              break;
-            }
-          case 6:
-            {
-              remplissage(proprietes_particules().volume_particules(), ftab);
-              break;
-            }
-          default:
-            Cerr << "Error for the method Transport_Marqueur_FT::get_field" << finl;
-            Process::exit();
-          }
-      res = 1;
-    }
+	map[Key("MASSE_VOLUMIQUE", Localization::Vertex, typeid(double))] = [this](DoubleTab& dtab) {
+        remplissage(this->proprietes_particules().masse_vol_particules(), dtab);
+	};
 
-  return res;
-}
-/*! @brief Voir l'autre get_field.
- *
- * Cette fonction est specifique aux champs d'entiers.
- *
- */
-int Transport_Marqueur_FT::get_field(const Motcle& champ, Localization localization, IntTab *itab) const
-{
-  return 0;
+	map[Key("DIAMETRE", Localization::Vertex, typeid(double))] = [this](DoubleTab& dtab) {
+        remplissage(this->proprietes_particules().diametre_particules(), dtab);
+	};
+
+	map[Key("VOLUME", Localization::Vertex, typeid(double))] = [this](DoubleTab& dtab) {
+        remplissage(this->proprietes_particules().volume_particules(), dtab);
+	};
 }
